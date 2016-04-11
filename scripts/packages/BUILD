@@ -1,7 +1,6 @@
 package(default_visibility = ["//visibility:public"])
 
-load("/tools/build_defs/pkg/pkg", "pkg_tar")
-load("/tools/build_defs/pkg/pkg", "pkg_deb")
+load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
 
 load("/tools/rules/heron_api", "heron_api_files")
 

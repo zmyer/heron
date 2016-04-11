@@ -74,7 +74,7 @@ public class LocalFileSystemStateManager extends FileSystemStateManager {
     return future;
   }
 
-  protected <M extends Message> ListenableFuture<M> getData(String path, M.Builder builder) {
+  protected <M extends Message> ListenableFuture<M> getData(String path, Message.Builder builder) {
     final SettableFuture<M> future = SettableFuture.create();
     byte[] data = FileUtils.readFromFile(path);
     if (data.length == 0) {
@@ -86,7 +86,7 @@ public class LocalFileSystemStateManager extends FileSystemStateManager {
       builder.mergeFrom(data);
       future.set((M) builder.build());
     } catch (InvalidProtocolBufferException e) {
-      future.setException(new RuntimeException("Could not parse " + M.Builder.class, e));
+      future.setException(new RuntimeException("Could not parse " + Message.Builder.class, e));
     }
 
     return future;
