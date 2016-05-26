@@ -485,9 +485,7 @@ create the VM), click on the VM, and then click on &lt;strong&gt;Settings&lt;/st
 &lt;p&gt;&lt;strong&gt;Note&lt;/strong&gt;: You will need to stop the VM before modifying these settings.&lt;/p&gt;
 
 &lt;p&gt;&lt;img src=&#34;/heron/img/virtual-box-processors.png&#34; alt=&#34;VirtualBox Processors&#34; /&gt;
-
-&lt;img src=&#34;/heron/img/virtual-box-memory.png&#34; alt=&#34;VirtualBox Memory&#34; /&gt;
-&lt;/p&gt;
+&lt;img src=&#34;/heron/img/virtual-box-memory.png&#34; alt=&#34;VirtualBox Memory&#34; /&gt;&lt;/p&gt;
 
 &lt;h2 id=&#34;building-heron:69e60651f42783a7df723575c4088b5b&#34;&gt;Building Heron&lt;/h2&gt;
 
@@ -657,7 +655,6 @@ in the following figure.&lt;/p&gt;
 
 &lt;p&gt;&lt;br /&gt;
 &lt;img src=&#34;/heron/img/heron-deployment.png&#34; alt=&#34;Heron Deployment&#34; /&gt;
-
 &lt;br/&gt;&lt;/p&gt;
 
 &lt;p&gt;A Heron deployment requires several components working together. The following must
@@ -939,8 +936,7 @@ discoverable by any process in the topology. The TM also constructs the &lt;a hr
 plan&lt;/a&gt; for a topology which it relays to different
 components.&lt;/p&gt;
 
-&lt;p&gt;&lt;img src=&#34;/heron/img/tmaster.png&#34; alt=&#34;Topology Master&#34; /&gt;
-&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;/heron/img/tmaster.png&#34; alt=&#34;Topology Master&#34; /&gt;&lt;/p&gt;
 
 &lt;h4 id=&#34;topology-master-configuration:1bf455b3a3c6e1e40be41ef6023b75eb&#34;&gt;Topology Master Configuration&lt;/h4&gt;
 
@@ -966,15 +962,13 @@ components. Each &lt;a href=&#34;#heron-instance:1bf455b3a3c6e1e40be41ef6023b75e
 local SM, while all of the SMs in a given topology connect to one another to
 form a network. Below is a visual illustration of a network of SMs:&lt;/p&gt;
 
-&lt;p&gt;&lt;img src=&#34;/heron/img/data-flow.png&#34; alt=&#34;Heron Data Flow&#34; /&gt;
-&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;/heron/img/data-flow.png&#34; alt=&#34;Heron Data Flow&#34; /&gt;&lt;/p&gt;
 
 &lt;p&gt;In addition to being a routing engine for data streams, SMs are responsible for
 propagating &lt;a href=&#34;https://en.wikipedia.org/wiki/Back_pressure&#34;&gt;back pressure&lt;/a&gt;
 within the topology when necessary. Below is an illustration of back pressure:&lt;/p&gt;
 
-&lt;p&gt;&lt;img src=&#34;/heron/img/backpressure1.png&#34; alt=&#34;Back Pressure 1&#34; /&gt;
-&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;/heron/img/backpressure1.png&#34; alt=&#34;Back Pressure 1&#34; /&gt;&lt;/p&gt;
 
 &lt;p&gt;In the diagram above, assume that bolt &lt;strong&gt;B3&lt;/strong&gt; (in container &lt;strong&gt;A&lt;/strong&gt;) receives all
 of its inputs from spout &lt;strong&gt;S1&lt;/strong&gt;. &lt;strong&gt;B3&lt;/strong&gt; is running more slowly than other
@@ -988,8 +982,7 @@ other SMs will examine the container&amp;rsquo;s &lt;a href=&#34;../topologies#p
 plan&lt;/a&gt; and cut off inputs from spouts that feed
 bolt &lt;strong&gt;B3&lt;/strong&gt; (in this case spout &lt;strong&gt;S1&lt;/strong&gt;).&lt;/p&gt;
 
-&lt;p&gt;&lt;img src=&#34;/heron/img/backpressure2.png&#34; alt=&#34;Back Pressure 2&#34; /&gt;
-&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;/heron/img/backpressure2.png&#34; alt=&#34;Back Pressure 2&#34; /&gt;&lt;/p&gt;
 
 &lt;p&gt;Once the lagging bolt (&lt;strong&gt;B3&lt;/strong&gt;) begins functioning normally, the SM in container
 &lt;strong&gt;A&lt;/strong&gt; will notify the other SMs and stream routing within the topology will
@@ -1712,7 +1705,7 @@ Scale - SIGMOD’15&lt;/a&gt; (May, 2015)&lt;/li&gt;
 &lt;li&gt;&lt;a href=&#34;http://www.infoq.com/presentations/twitter-heron&#34;&gt;Flying Faster with Heron - InfoQ&lt;/a&gt; (Apr, 2016)&lt;/li&gt;
 &lt;li&gt;&lt;a href=&#34;https://www.youtube.com/watch?v=pUaFOuGgmco&#34;&gt;Twitter Heron: Stream Processing at
 Scale - @Scale&lt;/a&gt; (Sep, 2015)&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://player.oreilly.com/videos/9781491927977?login=true&#34;&gt;Stream Processing and Anomoly Detection - Velocity O&amp;rsquo;Reilly - Note: requires O&amp;rsquo;Reilly login &lt;/a&gt;(Jun, 2015)&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://player.oreilly.com/videos/9781491927977?login=true&#34;&gt;Stream Processing and Anomaly Detection - Velocity O&amp;rsquo;Reilly - Note: requires O&amp;rsquo;Reilly login &lt;/a&gt;(Jun, 2015)&lt;/li&gt;
 &lt;/ul&gt;
 
 &lt;h2 id=&#34;blog-posts:74f7fb04a75e766307d398251c369a21&#34;&gt;Blog Posts&lt;/h2&gt;
@@ -1726,7 +1719,7 @@ Heron&lt;/a&gt; (June, 2015)&lt;/li&gt;
 
 &lt;ul&gt;
 &lt;li&gt;&lt;a href=&#34;http://www.slideshare.net/arunkejariwal/real-time-analytics-algorithms-and-systems&#34;&gt;Real-Time Analytics: Algorithms and Systems - Twitter University &lt;/a&gt; (May, 2016)&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;http://www.slideshare.net/arunkejariwal/velocity-2015final&#34;&gt;Stream Processing and Anomoly Detection - Velocity O&amp;rsquo;Reilly &lt;/a&gt;(Jun, 2015)&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.slideshare.net/arunkejariwal/velocity-2015final&#34;&gt;Stream Processing and Anomaly Detection - Velocity O&amp;rsquo;Reilly &lt;/a&gt;(Jun, 2015)&lt;/li&gt;
 &lt;/ul&gt;
 </description>
     </item>
