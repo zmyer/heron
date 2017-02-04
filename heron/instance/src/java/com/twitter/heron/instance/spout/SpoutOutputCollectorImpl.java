@@ -36,7 +36,6 @@ import com.twitter.heron.common.utils.misc.TupleKeyGenerator;
 import com.twitter.heron.instance.OutgoingTupleCollection;
 import com.twitter.heron.proto.system.HeronTuples;
 
-
 /**
  * SpoutOutputCollectorImpl is used by bolt to emit tuples, it contains:
  * 1. IPluggableSerializer serializer, which will define the serializer
@@ -59,7 +58,7 @@ public class SpoutOutputCollectorImpl implements ISpoutOutputCollector {
   private final TupleKeyGenerator keyGenerator;
 
   private final SpoutMetrics spoutMetrics;
-  private final PhysicalPlanHelper helper;
+  private PhysicalPlanHelper helper;
 
   private final boolean ackingEnabled;
   // When acking is not enabled, if the spout does an emit with a anchor
@@ -80,9 +79,9 @@ public class SpoutOutputCollectorImpl implements ISpoutOutputCollector {
     }
 
     this.serializer = serializer;
-    this.helper = helper;
     this.spoutMetrics = spoutMetrics;
     this.keyGenerator = new TupleKeyGenerator();
+    updatePhysicalPlanHelper(helper);
 
     // with default capacity, load factor and insertion order
     inFlightTuples = new LinkedHashMap<Long, RootTupleInfo>();
@@ -102,7 +101,11 @@ public class SpoutOutputCollectorImpl implements ISpoutOutputCollector {
       immediateAcks = null;
     }
 
-    this.outputter = new OutgoingTupleCollection(helper, streamOutQueue);
+    this.outputter = new OutgoingTupleCollection(helper.getMyComponent(), streamOutQueue);
+  }
+
+  void updatePhysicalPlanHelper(PhysicalPlanHelper physicalPlanHelper) {
+    this.helper = physicalPlanHelper;
   }
 
   /////////////////////////////////////////////////////////
@@ -116,14 +119,13 @@ public class SpoutOutputCollectorImpl implements ISpoutOutputCollector {
 
   @Override
   public void emitDirect(int taskId, String streamId, List<Object> tuple, Object messageId) {
-    admitSpoutTuple(taskId, streamId, tuple, messageId);
+    throw new RuntimeException("emitDirect Not implemented");
   }
 
   // Log the report error and also send the stack trace to metrics manager.
   @Override
   public void reportError(Throwable error) {
-    Exception currentStack = new Exception("Reporting an error in topology code", error);
-    LOG.log(Level.SEVERE, "Error stack trace ", currentStack);
+    LOG.log(Level.SEVERE, "Reporting an error in topology code ", error);
   }
 
 
@@ -194,15 +196,10 @@ public class SpoutOutputCollectorImpl implements ISpoutOutputCollector {
   /////////////////////////////////////////////////////////
 
   private List<Integer> admitSpoutTuple(String streamId, List<Object> tuple, Object messageId) {
-    // First check whether this tuple is sane
-    helper.checkOutputSchema(streamId, tuple);
-
-    // customGroupingTargetTaskIds will be null if this stream is not CustomStreamGrouping
-    List<Integer> customGroupingTargetTaskIds =
-        helper.chooseTasksForCustomStreamGrouping(streamId, tuple);
-
-    // Invoke user-defined emit task hook
-    helper.getTopologyContext().invokeHookEmit(tuple, streamId, customGroupingTargetTaskIds);
+    // No need to send tuples if it is already terminated
+    if (helper.isTerminatedComponent()) {
+      return null;
+    }
 
     // Start construct the data tuple
     HeronTuples.HeronDataTuple.Builder bldr = HeronTuples.HeronDataTuple.newBuilder();
@@ -210,12 +207,20 @@ public class SpoutOutputCollectorImpl implements ISpoutOutputCollector {
     // set the key. This is mostly ignored
     bldr.setKey(0);
 
-    if (customGroupingTargetTaskIds != null) {
-      // It is a CustomStreamGrouping
-      for (Integer taskId : customGroupingTargetTaskIds) {
-        bldr.addDestTaskIds(taskId);
+    // customGroupingTargetTaskIds will be null if this stream is not CustomStreamGrouping
+    List<Integer> customGroupingTargetTaskIds = null;
+    if (!helper.isCustomGroupingEmpty()) {
+      customGroupingTargetTaskIds =
+          helper.chooseTasksForCustomStreamGrouping(streamId, tuple);
+
+      if (customGroupingTargetTaskIds != null) {
+        // It is a CustomStreamGrouping
+        bldr.addAllDestTaskIds(customGroupingTargetTaskIds);
       }
     }
+
+    // Invoke user-defined emit task hook
+    helper.getTopologyContext().invokeHookEmit(tuple, streamId, customGroupingTargetTaskIds);
 
     if (messageId != null) {
       RootTupleInfo tupleInfo = new RootTupleInfo(streamId, messageId);
@@ -229,7 +234,6 @@ public class SpoutOutputCollectorImpl implements ISpoutOutputCollector {
     }
 
     long tupleSizeInBytes = 0;
-
     long startTime = System.nanoTime();
 
     // Serialize it
@@ -250,10 +254,6 @@ public class SpoutOutputCollectorImpl implements ISpoutOutputCollector {
 
     // TODO:- remove this after changing the api
     return null;
-  }
-
-  private void admitSpoutTuple(int taskId, String streamId, List<Object> tuple, Object messageId) {
-    throw new RuntimeException("emitDirect Not implemented");
   }
 
   private HeronTuples.RootId.Builder EstablishRootId(RootTupleInfo tupleInfo) {

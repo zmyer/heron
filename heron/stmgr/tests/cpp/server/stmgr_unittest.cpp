@@ -71,6 +71,8 @@ static heron::proto::api::Topology* GenerateDummyTopology(
     sp_string compname = SPOUT_NAME;
     compname += std::to_string(i);
     component->set_name(compname);
+    heron::proto::api::ComponentObjectSpec compspec = heron::proto::api::JAVA_CLASS_NAME;
+    component->set_spec(compspec);
     // Set the stream information
     heron::proto::api::OutputStream* ostream = spout->add_outputs();
     heron::proto::api::StreamId* tstream = ostream->mutable_stream();
@@ -96,6 +98,8 @@ static heron::proto::api::Topology* GenerateDummyTopology(
     sp_string compname = BOLT_NAME;
     compname += std::to_string(i);
     component->set_name(compname);
+    heron::proto::api::ComponentObjectSpec compspec = heron::proto::api::JAVA_CLASS_NAME;
+    component->set_spec(compspec);
     // Set the stream information
     heron::proto::api::InputStream* istream = bolt->add_inputs();
     heron::proto::api::StreamId* tstream = istream->mutable_stream();
@@ -551,8 +555,7 @@ void TearCommonResources(CommonResources& common) {
 
   for (size_t i = 0; i < common.ss_list_.size(); ++i) delete common.ss_list_[i];
 
-  for (std::map<sp_string, heron::proto::system::Instance*>::iterator itr =
-           common.instanceid_instance_.begin();
+  for (auto itr = common.instanceid_instance_.begin();
        itr != common.instanceid_instance_.end(); ++itr)
     delete itr->second;
 
@@ -1518,7 +1521,10 @@ TEST(StMgr, test_tmaster_restart_on_same_address) {
   // Note: Here we sleep longer compared to the previous test as we need
   // to tmasterClient could take upto 1 second (specified in test_heron_internals.yaml)
   // to retry connecting to tmaster.
-  sleep(3);
+  int retries = 30;
+  while (regular_stmgr->GetPhysicalPlan()->stmgrs(1).data_port() == common.stmgr_baseport_ + 1
+         && retries--)
+    sleep(1);
 
   // Ensure that Stmgr connected to the new tmaster and has received new physical plan
   CHECK_EQ(regular_stmgr->GetPhysicalPlan()->stmgrs(1).data_port(), common.stmgr_baseport_ + 2);
@@ -1628,8 +1634,7 @@ TEST(StMgr, test_metricsmgr_reconnect) {
   VerifyMetricsMgrTMaster(common);
 
   // Kill the metrics mgr
-  for (std::vector<EventLoopImpl*>::iterator iter = common.ss_list_.begin();
-       iter != common.ss_list_.end(); ++iter) {
+  for (auto iter = common.ss_list_.begin(); iter != common.ss_list_.end(); ++iter) {
     if (*iter == mmgr_ss) {
       common.ss_list_.erase(iter);
       break;

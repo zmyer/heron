@@ -66,6 +66,8 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <typeindex>
+#include <list>
 #include "basics/basics.h"
 #include "glog/logging.h"
 #include "network/connection.h"
@@ -75,6 +77,7 @@
 #include "network/networkoptions.h"
 #include "network/network_error.h"
 #include "network/packet.h"
+#include "network/mempool.h"
 
 /*
  * Server class definition
@@ -128,6 +131,11 @@ class Server : public BaseServer {
   // message is now owned by the Server class
   void SendMessage(Connection* connection, const google::protobuf::Message& message);
 
+  void SendMessage(Connection* _connection,
+                   sp_int32 _byte_size,
+                   const sp_string _type_name,
+                   const char* _message);
+
   // Close a connection. This function doesn't return anything.
   // When the connection is attempted to be closed(which can happen
   // at a later time if using thread pool), The HandleConnectionClose
@@ -168,6 +176,9 @@ class Server : public BaseServer {
   // Backpressure Reliever
   virtual void StopBackPressureConnectionCb(Connection* _connection);
 
+  // Connection buffer size monitor
+  virtual void ConnectionBufferChangeCb(Connection* _connection);
+
   // Return the underlying EventLoop.
   EventLoop* getEventLoop() { return eventLoop_; }
 
@@ -196,6 +207,18 @@ class Server : public BaseServer {
 
   // Called when the connection is closed
   virtual void HandleConnectionClose_Base(BaseConnection* connection, NetworkErrorCode _status);
+
+  MemPool<google::protobuf::Message> _heron_message_pool;
+
+  template<typename M>
+  void release(M* m) {
+    _heron_message_pool.release(m);
+  }
+
+  template<typename M>
+  M* acquire(M* m) {
+    return _heron_message_pool.acquire(m);
+  }
 
  private:
   // When a new packet arrives on the connection, this is invoked by the Connection
@@ -228,15 +251,15 @@ class Server : public BaseServer {
                        IncomingPacket* _ipkt) {
     REQID rid;
     CHECK(_ipkt->UnPackREQID(&rid) == 0) << "REQID unpacking failed";
-    M* m = new M();
+    M* m = nullptr;
+    m = _heron_message_pool.acquire(m);
     if (_ipkt->UnPackProtocolBuffer(m) != 0) {
       // We could not decode the pb properly
       std::cerr << "Could not decode protocol buffer of type " << m->GetTypeName();
-      delete m;
+      release(m);
       CloseConnection(_conn);
       return;
     }
-    CHECK(m->IsInitialized());
 
     std::function<void()> cb = std::bind(method, _t, _conn, m);
 

@@ -16,12 +16,12 @@ for heron.
 
 ```bash
 # Build heron-tracker
-$ bazel build heron/tracker/src/python:heron-tracker
+$ bazel build heron/tools/tracker/src/python:heron-tracker
 
 # The location of heron-tracker pex executable is
-# bazel-bin/heron/tracker/src/python/heron-tracker
+# bazel-bin/heron/tools/tracker/src/python/heron-tracker
 # To run using default options:
-$ ./bazel-bin/heron/tracker/src/python/heron-tracker
+$ ./bazel-bin/heron/tools/tracker/src/python/heron-tracker
 ```
 
 `heron-tracker` is a self executable
@@ -51,15 +51,25 @@ statemgrs:
     name: "local"
     rootpath: "~/.herondata/repository/state/local"
     tunnelhost: "localhost"
-  -
-    type: "zookeeper"
-    name: "localzk"
-    hostport: "localhost:2181"
-    rootpath: "/heron/cluster"
-    tunnelhost: "localhost"
+#
+# To use 'localzk', launch a zookeeper server locally
+# and create the following path:
+#  *. /heron/topologies
+#
+#  -
+#    type: "zookeeper"
+#    name: "localzk"
+#    hostport: "localhost:2181"
+#    rootpath: "/heron"
+#    tunnelhost: "localhost" -
 ```
 
-Note that topologies from all the state managers would be read.
+Topologies from all the state managers would be read and can be queried from
+Tracker.
+
+Note that Tracker does not create any zookeeper nodes itself. It is a readonly
+service. If you launch the Tracker without creating `/topologies` node under the
+rootpath, Tracker will fail with a `NoNodeError`.
 
 #### 2. Viz URL Format
 

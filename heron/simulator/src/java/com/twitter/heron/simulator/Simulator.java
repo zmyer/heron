@@ -32,7 +32,7 @@ import com.twitter.heron.simulator.executors.InstanceExecutor;
 import com.twitter.heron.simulator.executors.MetricsExecutor;
 import com.twitter.heron.simulator.executors.StreamExecutor;
 import com.twitter.heron.simulator.utils.PhysicalPlanUtil;
-
+import com.twitter.heron.spi.utils.TopologyUtils;
 
 /**
  * One Simulator instance can only submit one topology. Please have multiple Simulator instances
@@ -101,6 +101,10 @@ public class Simulator {
             setName(name).
             setState(TopologyAPI.TopologyState.RUNNING).
             getTopology();
+
+    if (!TopologyUtils.verifyTopology(topologyToRun)) {
+      throw new RuntimeException("Topology object is Malformed");
+    }
 
     PhysicalPlans.PhysicalPlan pPlan = PhysicalPlanUtil.getPhysicalPlan(topologyToRun);
 
@@ -202,6 +206,20 @@ public class Simulator {
    */
   public class DefaultExceptionHandler implements Thread.UncaughtExceptionHandler {
     public void uncaughtException(Thread thread, Throwable exception) {
+      // Add try and catch block to prevent new exceptions stop the handling thread
+      try {
+        // Delegate to the actual one
+        handleException(thread, exception);
+
+        // SUPPRESS CHECKSTYLE IllegalCatch
+      } catch (Throwable t) {
+        LOG.log(Level.SEVERE, "Failed to handle exception. Process halting", t);
+        Runtime.getRuntime().halt(1);
+      }
+    }
+
+    // The actual uncaught exceptions handing logic
+    private void handleException(Thread thread, Throwable exception) {
       LOG.severe("Local Mode Process exiting.");
       LOG.log(Level.SEVERE,
           "Exception caught in thread: " + thread.getName() + " with id: " + thread.getId(),
@@ -214,7 +232,6 @@ public class Simulator {
       // thread in the pool. Threads may implement a clean Interrupt logic.
       threadsPool.shutdownNow();
 
-      // TODO : It is not clear if this signal should be sent to all the threads (including threads
       // not owned by HeronInstance). To be safe, not sending these interrupts.
       Runtime.getRuntime().halt(1);
     }

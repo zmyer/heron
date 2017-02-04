@@ -18,12 +18,13 @@ import java.nio.file.Paths;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.twitter.heron.scheduler.utils.LauncherUtils;
+import com.twitter.heron.scheduler.utils.Runtime;
+import com.twitter.heron.scheduler.utils.SchedulerUtils;
 import com.twitter.heron.spi.common.Config;
 import com.twitter.heron.spi.common.Context;
-import com.twitter.heron.spi.common.PackingPlan;
+import com.twitter.heron.spi.packing.PackingPlan;
 import com.twitter.heron.spi.scheduler.ILauncher;
-import com.twitter.heron.spi.utils.Runtime;
-import com.twitter.heron.spi.utils.SchedulerUtils;
 
 /**
  * Launches the Slurm Scheduler. The launcher assumes a shared directory between the nodes.
@@ -65,7 +66,9 @@ public class SlurmLauncher implements ILauncher {
       return false;
     }
 
-    return SchedulerUtils.onScheduleAsLibrary(config, runtime,
+    LauncherUtils launcherUtils = LauncherUtils.getInstance();
+    Config ytruntime = launcherUtils.createConfigWithPackingDetails(runtime, packing);
+    return launcherUtils.onScheduleAsLibrary(config, ytruntime,
         new SlurmScheduler(topologyWorkingDirectory), packing);
   }
 

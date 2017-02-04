@@ -59,6 +59,12 @@ public class SystemConfig {
       = "heron.metrics.export.interval.sec";
 
   /**
+   * The maximum number of exceptions in one MetricPublisherPublishMessage protobuf
+   */
+  public static final String HERON_METRICS_MAX_EXCEPTIONS_PER_MESSAGE_COUNT
+      = "heron.metrics.max.exceptions.per.message.count";
+
+  /**
    * The queue capacity (num of items) in bolt for buffer packets to read from stream manager
    */
   public static final String INSTANCE_INTERNAL_BOLT_READ_QUEUE_CAPACITY
@@ -129,6 +135,12 @@ public class SystemConfig {
    */
   public static final String INSTANCE_SET_DATA_TUPLE_CAPACITY
       = "heron.instance.set.data.tuple.capacity";
+
+  /**
+   * The maximum size in bytes of data tuple to batch in a HeronDataTupleSet protobuf
+   */
+  public static final String INSTANCE_SET_DATA_TUPLE_SIZE_BYTES
+      = "heron.instance.set.data.tuple.size.bytes";
 
   /**
    * The size of packets read from stream manager will be determined by the minimal of
@@ -266,7 +278,7 @@ public class SystemConfig {
   /**
    * The size of packets read from socket will be determined by the minimal of:
    * (a) time based (b) size based
-   *
+   * <p>
    * Time based, the maximum batch time in ms for instance to read from socket per attempt
    */
   public static final String METRICSMGR_NETWORK_READ_BATCH_TIME_MS
@@ -281,7 +293,7 @@ public class SystemConfig {
   /**
    * The size of packets written to socket will be determined by the minimal of
    * (a) time based (b) size based
-   *
+   * <p>
    * Time based, the maximum batch time in ms to write to socket
    */
   public static final String METRICSMGR_NETWORK_WRITE_BATCH_TIME_MS
@@ -341,6 +353,14 @@ public class SystemConfig {
   public int getInstanceSetDataTupleCapacity() {
     return TypeUtils.getInteger(this.config.get(
         SystemConfig.INSTANCE_SET_DATA_TUPLE_CAPACITY));
+  }
+
+  public long getInstanceSetDataTupleSizeBytes() {
+    // TODO(mfu): Provide default values for all configs uniformly
+    // TODO(mfu): https://github.com/twitter/heron/issues/970
+    Object value = this.config.get(
+        SystemConfig.INSTANCE_SET_DATA_TUPLE_SIZE_BYTES);
+    return value == null ? Long.MAX_VALUE : TypeUtils.getLong(value);
   }
 
   public int getInstanceSetControlTupleCapacity() {
@@ -524,6 +544,12 @@ public class SystemConfig {
     return TypeUtils.
         getInteger(this.config.get(
             SystemConfig.METRICSMGR_NETWORK_OPTIONS_SOCKET_SEND_BUFFER_SIZE_BYTES));
+  }
+
+  public int getHeronMetricsMaxExceptionsPerMessageCount() {
+    Object value = this.config.get(
+        SystemConfig.HERON_METRICS_MAX_EXCEPTIONS_PER_MESSAGE_COUNT);
+    return value == null ? Integer.MAX_VALUE : TypeUtils.getInteger(value);
   }
 
   public Object put(String key, Object value) {

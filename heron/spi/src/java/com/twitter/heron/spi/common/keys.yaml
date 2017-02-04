@@ -28,6 +28,8 @@ UPLOADER_YAML:                       heron.config.file.uploader.yaml
 CLUSTER:                             heron.config.cluster
 ROLE:                                heron.config.role
 ENVIRON:                             heron.config.environ
+DRY_RUN:                             heron.config.dry_run
+DRY_RUN_FORMAT_TYPE:                 heron.config.dry_run_format_type
 VERBOSE:                             heron.config.verbose
 CONFIG_PATH:                         heron.config.path
 CONFIG_PROPERTY:                     heron.config.property
@@ -48,6 +50,7 @@ UPLOADER_CLASS:                      heron.class.uploader
 LAUNCHER_CLASS:                      heron.class.launcher
 SCHEDULER_CLASS:                     heron.class.scheduler
 PACKING_CLASS:                       heron.class.packing.algorithm
+REPACKING_CLASS:                     heron.class.repacking.algorithm
 STATE_MANAGER_CLASS:                 heron.class.state.manager
 
 ################################################################################
@@ -78,7 +81,7 @@ TOPOLOGY_ID:                         heron.topology.id
 TOPOLOGY_NAME:                       heron.topology.name
 TOPOLOGY_DEFINITION_FILE:            heron.topology.definition.file
 TOPOLOGY_DEFINITION:                 heron.topology.definition
-TOPOLOGY_JAR_FILE:                   heron.topology.jar.file
+TOPOLOGY_BINARY_FILE:                heron.topology.binary.file
 TOPOLOGY_PACKAGE_FILE:               heron.topology.package.file
 TOPOLOGY_PACKAGE_TYPE:               heron.topology.package.type
 TOPOLOGY_CONTAINER_ID:               heron.topology.container.id
@@ -124,7 +127,6 @@ LAUNCHER_CLASS_INSTANCE:             heron.runtime.launcher.class.instance
 
 COMPONENT_RAMMAP:                    heron.runtime.component.rammap
 COMPONENT_JVM_OPTS_IN_BASE64:        heron.runtime.component.jvm.opts.in.base64
-INSTANCE_DISTRIBUTION:               heron.runtime.instance.distribution
 INSTANCE_JVM_OPTS_IN_BASE64:         heron.runtime.instance.jvm.opts.in.base64
 
 NUM_CONTAINERS:                      heron.runtime.num.containers
@@ -160,6 +162,7 @@ SANDBOX_SCHEDULER_YAML:              heron.config.sandbox.file.scheduler.yaml
 SANDBOX_STATEMGR_YAML:               heron.config.sandbox.file.statemgr.yaml
 SANDBOX_SYSTEM_YAML:                 heron.config.sandbox.file.system.yaml
 SANDBOX_UPLOADER_YAML:               heron.config.sandbox.file.uploader.yaml
+SANDBOX_OVERRIDE_YAML:               heron.config.sandbox.file.override.yaml
 
 ################################################################################
 # keys for sandbox config provided user binaries
@@ -168,6 +171,7 @@ SANDBOX_EXECUTOR_BINARY:             heron.binaries.sandbox.executor
 SANDBOX_STMGR_BINARY:                heron.binaries.sandbox.stmgr
 SANDBOX_TMASTER_BINARY:              heron.binaries.sandbox.tmaster
 SANDBOX_SHELL_BINARY:                heron.binaries.sandbox.shell
+SANDBOX_PYTHON_INSTANCE_BINARY:      heron.binaries.sandbox.python.instance
 SANDBOX_SCHEDULER_JAR:               heron.jars.sandbox.scheduler
 
 ################################################################################

@@ -11,111 +11,27 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 package com.twitter.heron.scheduler.aurora;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
+import java.util.Set;
 
-import com.twitter.heron.spi.common.ShellUtils;
+import com.twitter.heron.spi.packing.PackingPlan;
 
 /**
- * This file defines Utils methods used by Aurora
+ * Interface that defines how a client interacts with aurora to control the job lifecycle
  */
-public class AuroraController {
-  private static final Logger LOG = Logger.getLogger(AuroraController.class.getName());
+public interface AuroraController {
 
-  private final String jobName;
-  private final String cluster;
-  private final String role;
-  private final String env;
-  private final boolean isVerbose;
+  boolean createJob(Map<AuroraField, String> auroraProperties);
+  boolean killJob();
 
-  public AuroraController(
-      String jobName,
-      String cluster,
-      String role,
-      String env,
-      boolean isVerbose) {
-    this.jobName = jobName;
-    this.cluster = cluster;
-    this.role = role;
-    this.env = env;
-    this.isVerbose = isVerbose;
-  }
+  /**
+   * Restarts a given container, or the entire job if containerId is null
+   * @param containerId ID of container to restart, or entire job if null
+   */
+  boolean restart(Integer containerId);
 
-  // Static method to append verbose and batching options if needed
-  public static void appendAuroraCommandOptions(
-      List<String> auroraCmd,
-      boolean isVerbose) {
-    // Append verbose if needed
-    if (isVerbose) {
-      auroraCmd.add("--verbose");
-    }
-
-    // Append batch size.
-    // Note that we can not use "--no-batching" since "restart" command does not accept it.
-    // So we play a small trick here by setting batch size Integer.MAX_VALUE.
-    auroraCmd.add("--batch-size");
-    auroraCmd.add("" + Integer.MAX_VALUE);
-
-    return;
-  }
-
-  // Create an aurora job
-  public boolean createJob(
-      String auroraFilename,
-      Map<String, String> bindings) {
-    List<String> auroraCmd =
-        new ArrayList<>(Arrays.asList("aurora", "job", "create", "--wait-until", "RUNNING"));
-
-    for (Map.Entry<String, String> binding : bindings.entrySet()) {
-      auroraCmd.add("--bind");
-      auroraCmd.add(String.format("%s=%s", binding.getKey(), binding.getValue()));
-    }
-
-    String jobSpec = String.format("%s/%s/%s/%s", cluster, role, env, jobName);
-    auroraCmd.add(jobSpec);
-    auroraCmd.add(auroraFilename);
-
-    if (isVerbose) {
-      auroraCmd.add("--verbose");
-    }
-
-    return runProcess(auroraCmd);
-  }
-
-  // Kill an aurora job
-  public boolean killJob() {
-    List<String> auroraCmd = new ArrayList<>(Arrays.asList("aurora", "job", "killall"));
-    String jobSpec = String.format("%s/%s/%s/%s", cluster, role, env, jobName);
-    auroraCmd.add(jobSpec);
-
-    appendAuroraCommandOptions(auroraCmd, isVerbose);
-
-    return runProcess(auroraCmd);
-  }
-
-  // Restart an aurora job
-  public boolean restartJob(int containerId) {
-    List<String> auroraCmd = new ArrayList<>(Arrays.asList("aurora", "job", "restart"));
-    String jobSpec = String.format("%s/%s/%s/%s", cluster, role, env, jobName);
-    if (containerId != -1) {
-      jobSpec = String.format("%s/%s", jobSpec, "" + containerId);
-    }
-    auroraCmd.add(jobSpec);
-
-    appendAuroraCommandOptions(auroraCmd, isVerbose);
-
-    return runProcess(auroraCmd);
-  }
-
-  // Utils method for unit tests
-  protected boolean runProcess(List<String> auroraCmd) {
-    return 0 == ShellUtils.runProcess(
-        isVerbose, auroraCmd.toArray(new String[0]), new StringBuilder(), new StringBuilder());
-  }
+  void removeContainers(Set<PackingPlan.ContainerPlan> containersToRemove);
+  void addContainers(Integer count);
 }

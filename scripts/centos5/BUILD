@@ -34,9 +34,11 @@ genrule(
         ":hshell",
         ":hstmgr",
         ":htmaster",
+        ":hpyinstance",
         ":hscheduler",
         ":hscheduler-aurora",
         ":hscheduler-local",
+        ":hbppacking",
         ":hrrpacking",
         ":hmetricsmgr",
         ":hlfsstatemgr",
@@ -55,9 +57,11 @@ genrule(
         "--cp $(location hshell)                   heron-core/bin/heron-shell",
         "--cp $(location hstmgr)                   heron-core/bin/heron-stmgr",
         "--cp $(location htmaster)                 heron-core/bin/heron-tmaster",
+        "--cp $(location hpyinstance)              heron-core/bin/heron-python-instance",
         "--cp $(location hscheduler)               heron-core/lib/scheduler/heron-scheduler.jar",
         "--cp $(location hscheduler-aurora)        heron-core/lib/scheduler/heron-aurora-scheduler.jar",
         "--cp $(location hscheduler-local)         heron-core/lib/scheduler/heron-local-scheduler.jar",
+        "--cp $(location hbppacking)               heron-core/lib/packing/heron-binpacking-packing.jar",
         "--cp $(location hrrpacking)               heron-core/lib/packing/heron-roundrobin-packing.jar",
         "--cp $(location hmetricsmgr)              heron-core/lib/metricsmgr/heron-metricsmgr.jar",
         "--cp $(location hlfsstatemgr)             heron-core/lib/statemgr/heron-localfs-statemgr.jar",
@@ -89,6 +93,7 @@ genrule(
         ":hscheduler",
         ":hscheduler-aurora",
         ":hscheduler-local",
+        ":hbppacking",
         ":hrrpacking",
         ":hlfsstatemgr",
         ":hzkstatemgr",
@@ -97,7 +102,6 @@ genrule(
         ":protobuf-java",
         ":slf4j-api-java",
         ":slf4j-jdk-java",
-        ":log4j-over-slf4j-java",
     ],
     outs = [
         "heron-client.tar.gz",
@@ -120,15 +124,15 @@ genrule(
         "--cp $(location hscheduler)                 lib/scheduler/heron-scheduler.jar",
         "--cp $(location hscheduler-aurora)          lib/scheduler/heron-aurora-scheduler.jar",
         "--cp $(location hscheduler-local)           lib/scheduler/heron-local-scheduler.jar",
+        "--cp $(location hbppacking)                 lib/packing/heron-binpacking-packing.jar",
         "--cp $(location hrrpacking)                 lib/packing/heron-roundrobin-packing.jar",
         "--cp $(location hlfsstatemgr)               lib/statemgr/heron-localfs-statemgr.jar",
         "--cp $(location hzkstatemgr)                lib/statemgr/heron-zookeeper-statemgr.jar",
         "--cp $(location huploader-localfs)          lib/uploader/heron-localfs-uploader.jar",
         "--cp $(location huploader-null)             lib/uploader/heron-null-uploader.jar",
-        "--cp $(location protobuf-java)              lib/3rdparty/$$(basename $(location protobuf-java))",
-        "--cp $(location slf4j-api-java)             lib/3rdparty/$$(basename $(location slf4j-api-java))",
-        "--cp $(location slf4j-jdk-java)             lib/3rdparty/$$(basename $(location slf4j-jdk-java))",
-        "--cp $(location log4j-over-slf4j-java)      lib/3rdparty/$$(basename $(location log4j-over-slf4j-java))",
+        "--cp $(location protobuf-java)              lib/third_party/$$(basename $(location protobuf-java))",
+        "--cp $(location slf4j-api-java)             lib/third_party/$$(basename $(location slf4j-api-java))",
+        "--cp $(location slf4j-jdk-java)             lib/third_party/$$(basename $(location slf4j-jdk-java))",
     ]),
     heuristic_label_expansion = False,
     tags = ["manual"],
@@ -169,6 +173,7 @@ genrule(
     srcs = [
         ":release.yaml",
         ":hapi",
+        ":hspi",
         ":hstorm",
     ],
     outs = [
@@ -180,6 +185,7 @@ genrule(
         "$(location package_release.sh)              $(location heron-api.tar.gz)",
         "--cp $(location release.yaml)               release.yaml",
         "--cp $(location hapi)                       heron-api.jar",
+        "--cp $(location hspi)                       heron-spi.jar",
         "--cp $(location hstorm)                     heron-storm.jar",
     ]),
     heuristic_label_expansion = False,
@@ -189,37 +195,37 @@ genrule(
 
 filegroup(
     name = "conf-local-heron-internals",
-    srcs = ["//heron/config/src/yaml:conf-local-heron-internals"],
+    srcs = ["//heron/tools/config/src/yaml:conf-local-heron-internals"],
 )
 
 filegroup(
     name = "conf-local-metrics-sinks",
-    srcs = ["//heron/config/src/yaml:conf-local-metrics-sinks"],
+    srcs = ["//heron/tools/config/src/yaml:conf-local-metrics-sinks"],
 )
 
 filegroup(
     name = "conf-local-client",
-    srcs = ["//heron/config/src/yaml:conf-local-client"],
+    srcs = ["//heron/tools/config/src/yaml:conf-local-client"],
 )
 
 filegroup(
     name = "conf-local-packing",
-    srcs = ["//heron/config/src/yaml:conf-local-packing"],
+    srcs = ["//heron/tools/config/src/yaml:conf-local-packing"],
 )
 
 filegroup(
     name = "conf-local-scheduler",
-    srcs = ["//heron/config/src/yaml:conf-local-scheduler"],
+    srcs = ["//heron/tools/config/src/yaml:conf-local-scheduler"],
 )
 
 filegroup(
     name = "conf-local-statemgr",
-    srcs = ["//heron/config/src/yaml:conf-local-statemgr"],
+    srcs = ["//heron/tools/config/src/yaml:conf-local-statemgr"],
 )
 
 filegroup(
     name = "conf-local-uploader",
-    srcs = ["//heron/config/src/yaml:conf-local-uploader"],
+    srcs = ["//heron/tools/config/src/yaml:conf-local-uploader"],
 )
 
 filegroup(
@@ -230,6 +236,11 @@ filegroup(
 filegroup(
     name = "htmaster",
     srcs = ["//heron/tmaster/src/cpp:heron-tmaster"],
+)
+
+filegroup(
+    name = "hpyinstance",
+    srcs = ["//heron/instance/src/python/instance:heron-python-instance"],
 )
 
 filegroup(
@@ -263,6 +274,11 @@ filegroup(
 )
 
 filegroup(
+    name = "hbppacking",
+    srcs = ["//heron/packing/src/java:heron-binpacking-packing"],
+)
+
+filegroup(
     name = "hrrpacking",
     srcs = ["//heron/packing/src/java:heron-roundrobin-packing"],
 )
@@ -284,12 +300,12 @@ filegroup(
 
 filegroup(
     name = "hcli",
-    srcs = ["//heron/cli/src/python:heron"],
+    srcs = ["//heron/tools/cli/src/python:heron"],
 )
 
 filegroup(
     name = "haurora-job",
-    srcs = ["//heron/cli/src/python:heron-aurora"],
+    srcs = ["//heron/tools/cli/src/python:heron-aurora"],
 )
 
 filegroup(
@@ -334,27 +350,27 @@ filegroup(
 
 filegroup(
     name = "protobuf-java",
-    srcs = ["@protobuf-java//jar"],
+    srcs = ["@com_google_protobuf_protobuf_java//jar"],
 )
 
 filegroup(
     name = "slf4j-api-java",
-    srcs = ["@slf4j-api//jar"],
+    srcs = ["@org_slf4j_slf4j_api//jar"],
 )
 
 filegroup(
     name = "slf4j-jdk-java",
-    srcs = ["@slf4j-jdk//jar"],
-)
-
-filegroup(
-    name = "log4j-over-slf4j-java",
-    srcs = ["@log4j-over-slf4j//jar"],
+    srcs = ["@org_slf4j_slf4j_jdk14//jar"],
 )
 
 filegroup(
     name = "hapi",
     srcs = ["//heron/api/src/java:heron-api"],
+)
+
+filegroup(
+    name = "hspi",
+    srcs = ["//heron/spi/src/java:heron-spi"],
 )
 
 filegroup(
@@ -374,12 +390,12 @@ filegroup(
 
 filegroup(
     name = "htracker",
-    srcs = ["//heron/tracker/src/python:heron-tracker"],
+    srcs = ["//heron/tools/tracker/src/python:heron-tracker"],
 )
 
 filegroup(
     name = "hui",
-    srcs = ["//heron/ui/src/python:heron-ui"],
+    srcs = ["//heron/tools/ui/src/python:heron-ui"],
 )
 
 filegroup(
@@ -404,13 +420,15 @@ genrule(
     name = "generate-api-launcher",
     srcs = [
         ":release.yaml",
-        "//scripts/packages:api-template-bin.sh"
+        "//scripts/packages:api-template-bin.sh",
+        "//scripts/packages:bin-common.sh"
     ],
     outs = ["api_launcher_bin.sh"],
     cmd = """
         release_info="$$(cat $(location :release.yaml))"
+        bin_common="$$(cat $(location //scripts/packages:bin-common.sh))"
         template="$$(cat $(location //scripts/packages:api-template-bin.sh))"
-        echo "$${template//%release_info%/$${release_info}}" >$@
+        echo "$${bin_common}\n\n$${template//%release_info%/$${release_info}}" >$@
         """,
 )
 
@@ -418,13 +436,15 @@ genrule(
     name = "generate-client-launcher",
     srcs = [
         ":release.yaml",
-        "//scripts/packages:client-template-bin.sh"
+        "//scripts/packages:client-template-bin.sh",
+        "//scripts/packages:bin-common.sh"
     ],
     outs = ["client_launcher_bin.sh"],
     cmd = """
         release_info="$$(cat $(location :release.yaml))"
+        bin_common="$$(cat $(location //scripts/packages:bin-common.sh))"
         template="$$(cat $(location //scripts/packages:client-template-bin.sh))"
-        echo "$${template//%release_info%/$${release_info}}" >$@
+        echo "$${bin_common}\n\n$${template//%release_info%/$${release_info}}" >$@
         """,
 )
 
@@ -432,13 +452,15 @@ genrule(
     name = "generate-tools-launcher",
     srcs = [
         ":release.yaml",
-        "//scripts/packages:tools-template-bin.sh"
+        "//scripts/packages:tools-template-bin.sh",
+        "//scripts/packages:bin-common.sh"
     ],
     outs = ["tools_launcher_bin.sh"],
     cmd = """
         release_info="$$(cat $(location :release.yaml))"
+        bin_common="$$(cat $(location //scripts/packages:bin-common.sh))"
         template="$$(cat $(location //scripts/packages:tools-template-bin.sh))"
-        echo "$${template//%release_info%/$${release_info}}" >$@
+        echo "$${bin_common}\n\n$${template//%release_info%/$${release_info}}" >$@
         """,
 )
 

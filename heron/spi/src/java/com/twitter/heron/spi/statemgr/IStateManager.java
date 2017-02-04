@@ -17,8 +17,11 @@ package com.twitter.heron.spi.statemgr;
 import com.google.common.util.concurrent.ListenableFuture;
 
 import com.twitter.heron.api.generated.TopologyAPI;
+import com.twitter.heron.classification.InterfaceAudience;
+import com.twitter.heron.classification.InterfaceStability;
 import com.twitter.heron.proto.scheduler.Scheduler;
 import com.twitter.heron.proto.system.ExecutionEnvironment;
+import com.twitter.heron.proto.system.PackingPlans;
 import com.twitter.heron.proto.system.PhysicalPlans;
 import com.twitter.heron.proto.tmaster.TopologyMaster;
 import com.twitter.heron.spi.common.Config;
@@ -48,8 +51,23 @@ import com.twitter.heron.spi.common.Config;
  * Clients call the methods of the state passing a callback. The callback
  * is called with result code upon the completion of the operation.
  */
-
+@InterfaceAudience.LimitedPrivate
+@InterfaceStability.Unstable
 public interface IStateManager extends AutoCloseable {
+  enum LockName {
+    UPDATE_TOPOLOGY("updateTopology");
+
+    private String name;
+
+    LockName(String name) {
+      this.name = name;
+    }
+
+    public String getName() {
+      return name;
+    }
+  }
+
   /**
    * Initialize StateManager with the incoming context.
    */
@@ -64,6 +82,16 @@ public interface IStateManager extends AutoCloseable {
    * method has no effect.
    */
   void close();
+
+  /**
+   * Return a lock object backed by the state manager store.
+   *
+   * @param topologyName the name of the topology
+   * @param lockName any thread may get the {@code Lock} object bound to a given name, but only one
+   * thread may obtain the actual lock from that @{code Lock} object.
+   * @return an object representing an implementation of a lock.
+   */
+  Lock getLock(String topologyName, LockName lockName);
 
   /**
    * Is the given topology in RUNNING state?
@@ -118,6 +146,13 @@ public interface IStateManager extends AutoCloseable {
   ListenableFuture<Boolean> deleteTopology(String topologyName);
 
   /**
+   * Delete the packing plan for the given topology
+   *
+   * @return Boolean - Success or Failure
+   */
+  ListenableFuture<Boolean> deletePackingPlan(String topologyName);
+
+  /**
    * Delete the physical plan for the given topology
    *
    * @return Boolean - Success or Failure
@@ -130,6 +165,15 @@ public interface IStateManager extends AutoCloseable {
    * @return Boolean - Success or Failure
    */
   ListenableFuture<Boolean> deleteSchedulerLocation(String topologyName);
+
+  /**
+   * Delete all locks for a given topology. Ideally locks should be deleted when released but it's
+   * possible that some state systems (e.g., ZooKeeper) will not delete all resources when a lock is
+   * released. This method should be invoked to clean all such lock resources.
+   *
+   * @return Boolean - Success or Failure
+   */
+  ListenableFuture<Boolean> deleteLocks(String topologyName);
 
   /**
    * Get the tmaster location for the given topology
@@ -168,6 +212,15 @@ public interface IStateManager extends AutoCloseable {
       WatchCallback watcher, String topologyName);
 
   /**
+   * Get the packing plan for the given topology
+   *
+   * @param watcher @see com.twitter.heron.spi.statemgr.WatchCallback
+   * @return PackingPlan
+   */
+  ListenableFuture<PackingPlans.PackingPlan> getPackingPlan(
+      WatchCallback watcher, String topologyName);
+
+  /**
    * Set the location of Tmaster.
    *
    * @return Boolean - Success or Failure
@@ -182,6 +235,14 @@ public interface IStateManager extends AutoCloseable {
    */
   ListenableFuture<Boolean> setPhysicalPlan(
       PhysicalPlans.PhysicalPlan physicalPlan, String topologyName);
+
+  /**
+   * Set the packing plan for the given topology
+   *
+   * @return Boolean - Success or Failure
+   */
+  ListenableFuture<Boolean> setPackingPlan(
+      PackingPlans.PackingPlan packingPlan, String topologyName);
 
   /**
    * Get the physical plan for the given topology

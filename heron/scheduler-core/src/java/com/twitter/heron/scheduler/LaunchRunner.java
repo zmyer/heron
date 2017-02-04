@@ -14,39 +14,40 @@
 
 package com.twitter.heron.scheduler;
 
-import java.util.concurrent.Callable;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.twitter.heron.api.generated.TopologyAPI;
 import com.twitter.heron.proto.system.ExecutionEnvironment;
+import com.twitter.heron.proto.system.PackingPlans;
+import com.twitter.heron.scheduler.dryrun.SubmitDryRunResponse;
+import com.twitter.heron.scheduler.utils.LauncherUtils;
+import com.twitter.heron.scheduler.utils.Runtime;
 import com.twitter.heron.spi.common.Config;
 import com.twitter.heron.spi.common.Context;
-import com.twitter.heron.spi.common.Keys;
-import com.twitter.heron.spi.common.PackingPlan;
-import com.twitter.heron.spi.packing.IPacking;
+import com.twitter.heron.spi.packing.PackingException;
+import com.twitter.heron.spi.packing.PackingPlan;
+import com.twitter.heron.spi.packing.PackingPlanProtoSerializer;
 import com.twitter.heron.spi.scheduler.ILauncher;
+import com.twitter.heron.spi.scheduler.LauncherException;
 import com.twitter.heron.spi.statemgr.SchedulerStateManagerAdaptor;
-import com.twitter.heron.spi.utils.Runtime;
+import com.twitter.heron.spi.utils.TopologyUtils;
 
 /**
  * Runs Launcher and launch topology. Also Uploads launch state to state manager.
  */
-public class LaunchRunner implements Callable<Boolean> {
+public class LaunchRunner {
   private static final Logger LOG = Logger.getLogger(LaunchRunner.class.getName());
 
   private Config config;
   private Config runtime;
 
   private ILauncher launcher;
-  private IPacking packing;
 
   public LaunchRunner(Config config, Config runtime) {
 
     this.config = config;
     this.runtime = runtime;
     this.launcher = Runtime.launcherClassInstance(runtime);
-    this.packing = Runtime.packingClassInstance(runtime);
   }
 
   public ExecutionEnvironment.ExecutionState createExecutionState() {
@@ -99,45 +100,69 @@ public class LaunchRunner implements Callable<Boolean> {
 
     // clear the state of user spout java objects - which can be potentially huge
     for (TopologyAPI.Spout.Builder spout : builder.getSpoutsBuilderList()) {
-      spout.getCompBuilder().clearJavaObject();
+      spout.getCompBuilder().clearSerializedObject();
     }
 
     // clear the state of user spout java objects - which can be potentially huge
     for (TopologyAPI.Bolt.Builder bolt : builder.getBoltsBuilderList()) {
-      bolt.getCompBuilder().clearJavaObject();
+      bolt.getCompBuilder().clearSerializedObject();
     }
 
     return builder.build();
   }
 
-  @Override
-  public Boolean call() {
+  private PackingPlans.PackingPlan createPackingPlan(PackingPlan packingPlan) {
+    PackingPlanProtoSerializer serializer = new PackingPlanProtoSerializer();
+    return serializer.toProto(packingPlan);
+  }
+
+  /**
+   * Call launcher to launch topology
+   *
+   * @throws LauncherException
+   * @throws PackingException
+   * @throws SubmitDryRunResponse
+   */
+  public void call() throws LauncherException, PackingException, SubmitDryRunResponse {
     SchedulerStateManagerAdaptor statemgr = Runtime.schedulerStateManagerAdaptor(runtime);
     TopologyAPI.Topology topology = Runtime.topology(runtime);
     String topologyName = Context.topologyName(config);
 
-    // get the packed plan
-    packing.initialize(config, runtime);
-    PackingPlan packedPlan = packing.pack();
+    PackingPlan packedPlan = LauncherUtils.getInstance().createPackingPlan(config, runtime);
 
-    // Add the instanceDistribution to the runtime
-    Config ytruntime = Config.newBuilder()
-        .putAll(runtime)
-        .put(Keys.instanceDistribution(), packedPlan.getInstanceDistribution())
-        .build();
+    if (Context.dryRun(config)) {
+      throw new SubmitDryRunResponse(topology, config, packedPlan);
+    }
+
+    int numContainers = TopologyUtils.getNumContainers(topology);
+    int numContainerPlans = packedPlan.getContainers().size();
+    if (numContainers != packedPlan.getContainers().size()) {
+      int instanceCount = packedPlan.getInstanceCount();
+      throw new LauncherException(String.format("Can not launch topology. The configured number of "
+          + "containers (%d) differs from the number of container plans (%d) for topology of %d "
+          + "instances", numContainers, numContainerPlans, instanceCount));
+    }
 
     // initialize the launcher
-    launcher.initialize(config, ytruntime);
+    launcher.initialize(config, runtime);
 
     Boolean result;
 
     // Set topology def first since we determine whether a topology is running
     // by checking the existence of topology def
     // store the trimmed topology definition into the state manager
+    // TODO(rli): log-and-false anti-pattern is too nested on this path. will not refactor
     result = statemgr.setTopology(trimTopology(topology), topologyName);
     if (result == null || !result) {
-      LOG.severe("Failed to set topology definition");
-      return false;
+      throw new LauncherException(String.format(
+          "Failed to set topology definition for topology '%s'", topologyName));
+    }
+
+    result = statemgr.setPackingPlan(createPackingPlan(packedPlan), topologyName);
+    if (result == null || !result) {
+      statemgr.deleteTopology(topologyName);
+      throw new LauncherException(String.format(
+          "Failed to set packing plan for topology '%s'", topologyName));
     }
 
     // store the execution state into the state manager
@@ -145,20 +170,19 @@ public class LaunchRunner implements Callable<Boolean> {
 
     result = statemgr.setExecutionState(executionState, topologyName);
     if (result == null || !result) {
-      LOG.severe("Failed to set execution state");
+      statemgr.deletePackingPlan(topologyName);
       statemgr.deleteTopology(topologyName);
-      return false;
+      throw new LauncherException(String.format(
+          "Failed to set execution state for topology '%s'", topologyName));
     }
 
     // launch the topology, clear the state if it fails
     if (!launcher.launch(packedPlan)) {
       statemgr.deleteExecutionState(topologyName);
+      statemgr.deletePackingPlan(topologyName);
       statemgr.deleteTopology(topologyName);
-      LOG.log(Level.SEVERE, "Failed to launch topology");
-      return false;
+      throw new LauncherException(String.format(
+          "Failed to launch topology '%s'", topologyName));
     }
-
-    return true;
   }
-
 }

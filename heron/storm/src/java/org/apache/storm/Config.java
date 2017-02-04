@@ -1,16 +1,20 @@
-// Copyright 2016 Twitter. All rights reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//    http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.apache.storm;
 
@@ -254,6 +258,54 @@ public class Config extends com.twitter.heron.api.Config {
    * Same in Heron
    */
   public static final String TOPOLOGY_PROJECT_NAME = "topology.project.name";
+
+  /**
+   * A list of hosts of ZooKeeper servers used to manage the cluster.
+   */
+  public static final String STORM_ZOOKEEPER_SERVERS = "storm.zookeeper.servers";
+
+  /**
+   * The port Storm will use to connect to each of the ZooKeeper servers.
+   */
+  public static final String STORM_ZOOKEEPER_PORT = "storm.zookeeper.port";
+
+  /**
+   * The root directory in ZooKeeper for metadata about TransactionalSpouts.
+   */
+  public static final String TRANSACTIONAL_ZOOKEEPER_ROOT = "transactional.zookeeper.root";
+
+  /**
+   * The session timeout for clients to ZooKeeper.
+   */
+  public static final String STORM_ZOOKEEPER_SESSION_TIMEOUT = "storm.zookeeper.session.timeout";
+
+  /**
+   * The connection timeout for clients to ZooKeeper.
+   */
+  public static final String STORM_ZOOKEEPER_CONNECTION_TIMEOUT =
+      "storm.zookeeper.connection.timeout";
+
+  /**
+   * The number of times to retry a Zookeeper operation.
+   */
+  public static final String STORM_ZOOKEEPER_RETRY_TIMES = "storm.zookeeper.retry.times";
+
+  /**
+   * The interval between retries of a Zookeeper operation.
+   */
+  public static final String STORM_ZOOKEEPER_RETRY_INTERVAL = "storm.zookeeper.retry.interval";
+
+  /**
+   * The list of zookeeper servers in which to keep the transactional state. If null (which is default),
+   * will use storm.zookeeper.servers
+   */
+  public static final String TRANSACTIONAL_ZOOKEEPER_SERVERS = "transactional.zookeeper.servers";
+
+  /**
+   * The port to use to connect to the transactional zookeeper servers. If null (which is default),
+   * will use storm.zookeeper.port
+   */
+  public static final String TRANSACTIONAL_ZOOKEEPER_PORT = "transactional.zookeeper.port";
 
   /**
    * ----  DO NOT USE -----

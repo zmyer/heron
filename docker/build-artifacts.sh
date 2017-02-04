@@ -47,7 +47,7 @@ heron_build_user() {
 }
 
 heron_build_time() {
-  local build_time=$(date)
+  local build_time=$(LC_ALL=en_EN.utf8 date)
   echo $build_time
 }
 
@@ -90,18 +90,13 @@ verify_source_exists() {
 }
 
 setup_scratch_dir() {
-  if [ ! -f "$1" ]; then
-    mkdir $1
-  fi
-
+  mkdir -p $1
   cp $DOCKER_DIR/* $1
 }
 
 setup_output_dir() {
-  if [ ! -d $1 ]; then
-    echo "Creating output directory $1"
-    mkdir $1
-  fi
+  echo "Creating output directory $1"
+  mkdir -p $1
 }
 
 run_build() {
@@ -127,12 +122,12 @@ run_build() {
   export SOURCE_TARBALL=${SOURCE_TARBALL}
   export OUTPUT_DIRECTORY=${OUTPUT_DIRECTORY}
 
-  export HERON_GIT_RELEASE="$(heron_git_release)"
-  export HERON_GIT_REV="$(heron_git_rev)"
-  export HERON_BUILD_HOST="$(heron_build_host)"
-  export HERON_BUILD_USER="$(heron_build_user)"
-  export HERON_BUILD_TIME="$(heron_build_time)"
-  export HERON_TREE_STATUS="$(heron_tree_status)"
+  export HERON_BUILD_VERSION="${HERON_BUILD_VERSION:-$(heron_git_release)}"
+  export HERON_GIT_REV="${HERON_GIT_REV:-$(heron_git_rev)}"
+  export HERON_BUILD_HOST="${HERON_GIT_HOST:-$(heron_build_host)}"
+  export HERON_BUILD_USER="${HERON_BUILD_USER:-$(heron_build_user)}"
+  export HERON_BUILD_TIME="${HERON_BUILD_TIME:-$(heron_build_time)}"
+  export HERON_TREE_STATUS="${HERON_TREE_STATUS:-$(heron_tree_status)}"
 
   if [ $TARGET_PLATFORM = "darwin" ]; then
     docker/compile-platform.sh
@@ -153,7 +148,7 @@ case $# in
   *)
     echo "Usage: $0 <platform> <version_string> [source-tarball] <output-directory> "
     echo "  "
-    echo "Platforms Supported: darwin, ubuntu14.04, ubuntu15.10, centos7"
+    echo "Platforms Supported: darwin, ubuntu14.04, ubuntu15.10, ubuntu16.04 centos7"
     echo "  "
     echo "Example:"
     echo "  ./build-artifacts.sh ubuntu14.04 0.12.0 ."

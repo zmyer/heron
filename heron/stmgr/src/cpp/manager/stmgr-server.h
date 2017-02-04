@@ -30,6 +30,7 @@ namespace common {
 class MetricsMgrSt;
 class MultiCountMetric;
 class TimeSpentMetric;
+class AssignableMetric;
 }
 }
 
@@ -46,7 +47,11 @@ class StMgrServer : public Server {
               heron::common::MetricsMgrSt* _metrics_manager_client);
   virtual ~StMgrServer();
 
-  void SendToInstance(sp_int32 _task_id, const proto::stmgr::TupleMessage& _message);
+  void SendToInstance2(sp_int32 _task_id, const proto::system::HeronTupleSet2& _message);
+  void SendToInstance2(sp_int32 _task_id,
+                       sp_int32 _byte_size,
+                       const sp_string _type_name,
+                       const char* _message);
 
   void BroadcastNewPhysicalPlan(const proto::system::PhysicalPlan& _pplan);
 
@@ -70,6 +75,7 @@ class StMgrServer : public Server {
 
  private:
   sp_string MakeBackPressureCompIdMetricName(const sp_string& instanceid);
+  sp_string MakeQueueSizeCompIdMetricName(const sp_string& instanceid);
   sp_string GetInstanceName(Connection* _connection);
 
   // Various handlers for different requests
@@ -77,12 +83,12 @@ class StMgrServer : public Server {
   // First from other stream managers
   void HandleStMgrHelloRequest(REQID _id, Connection* _conn,
                                proto::stmgr::StrMgrHelloRequest* _request);
-  void HandleTupleStreamMessage(Connection* _conn, proto::stmgr::TupleStreamMessage* _message);
+  void HandleTupleStreamMessage(Connection* _conn, proto::stmgr::TupleStreamMessage2* _message);
 
   // Next from local instances
   void HandleRegisterInstanceRequest(REQID _id, Connection* _conn,
                                      proto::stmgr::RegisterInstanceRequest* _request);
-  void HandleTupleSetMessage(Connection* _conn, proto::stmgr::TupleMessage* _message);
+  void HandleTupleSetMessage(Connection* _conn, proto::system::HeronTupleSet* _message);
 
   // Backpressure message from and to other stream managers
   void HandleStartBackPressureMessage(Connection* _conn,
@@ -97,6 +103,9 @@ class StMgrServer : public Server {
   void StartBackPressureConnectionCb(Connection* _connection);
   // Relieve back pressure
   void StopBackPressureConnectionCb(Connection* _connection);
+
+  // Connection buffer size metric
+  void ConnectionBufferChangeCb(Connection* _connection);
 
   // Can we free the back pressure on the spouts?
   void AttemptStopBackPressureFromSpouts();
@@ -139,6 +148,10 @@ class StMgrServer : public Server {
   // Used for back pressure metrics
   typedef std::map<sp_string, heron::common::TimeSpentMetric*> InstanceMetricMap;
   InstanceMetricMap instance_metric_map_;
+
+  // map of Instance_id/stmgrid to queue metric
+  typedef std::map<sp_string, heron::common::AssignableMetric*> QueueMetricMap;
+  QueueMetricMap queue_metric_map_;
 
   // instances/stream mgrs causing back pressure
   std::set<sp_string> remote_ends_who_caused_back_pressure_;

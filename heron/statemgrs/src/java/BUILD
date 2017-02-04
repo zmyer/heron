@@ -6,20 +6,24 @@ common_deps_files = \
     heron_java_proto_files() + [
         "//heron/spi/src/java:common-spi-java",
         "//heron/spi/src/java:statemgr-spi-java",
-        "@guava//jar",
+        "//heron/spi/src/java:network-utils-java",
+        "@com_google_guava_guava//jar",
     ]
 
 localfs_deps_files = \
     common_deps_files + [
+        "//heron/api/src/java:api-java",
         "//heron/common/src/java:basics-java",
+        "//heron/spi/src/java:heron-spi",
     ]
     
 zookeeper_deps_files = \
     localfs_deps_files + [
-        "@curator-client//jar",
-        "@curator-framework//jar",
-        "@zookeeper//jar",
-        "//3rdparty/java:logging"
+        "@org_apache_curator_curator_client//jar",
+        "@org_apache_curator_curator_framework//jar",
+        "@org_apache_curator_curator_recipes//jar",
+        "@org_apache_zookeeper_zookeeper//jar",
+        "//third_party/java:logging"
     ]
 
 java_library(
@@ -53,14 +57,15 @@ java_library(
     name = "localfs-statemgr-java",
     srcs = glob(["**/FileSystemStateManager.java"]) + glob(["**/localfs/**/*.java"]),
     resources = glob(["**/localfs/**/*.yaml"]),
-    deps = localfs_deps_files, 
+    deps = localfs_deps_files,
 )
 
 java_binary(
     name = "localfs-statemgr-unshaded",
     srcs = glob(["**/FileSystemStateManager.java"]) + glob(["**/localfs/**/*.java"]),
     resources = glob(["**/localfs/**/*.yaml"]),
-    deps = localfs_deps_files, 
+    deps = localfs_deps_files,
+    main_class="com.twitter.heron.statemgr.localfs.LocalFileSystemStateManager"
 )
 
 genrule(
@@ -80,6 +85,7 @@ java_binary(
     name = "zookeeper-statemgr-unshaded",
     srcs = glob(["**/zookeeper/**/*.java"]) + glob(["**/FileSystemStateManager.java"]),
     deps = zookeeper_deps_files,
+    main_class="com.twitter.heron.statemgr.zookeeper.curator.CuratorStateManager"
 )
 
 genrule(

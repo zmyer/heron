@@ -16,6 +16,8 @@ package com.twitter.heron.examples;
 
 import java.util.Map;
 
+import com.twitter.heron.common.basics.ByteAmount;
+
 import backtype.storm.Config;
 import backtype.storm.LocalCluster;
 import backtype.storm.StormSubmitter;
@@ -46,8 +48,8 @@ public final class ComponentJVMOptionsTopology {
     Config conf = new Config();
     conf.setDebug(true);
     conf.setMaxSpoutPending(10);
-    conf.setComponentRam("word", 500 * 1024 * 1024);
-    conf.setComponentRam("exclaim1", 1024 * 1024 * 1024);
+    conf.setComponentRam("word", ByteAmount.fromMegabytes(500));
+    conf.setComponentRam("exclaim1", ByteAmount.fromGigabytes(1));
 
     // TOPOLOGY_WORKER_CHILDOPTS will be a global one
     conf.put(Config.TOPOLOGY_WORKER_CHILDOPTS, "-XX:+HeapDumpOnOutOfMemoryError");
@@ -88,7 +90,7 @@ public final class ComponentJVMOptionsTopology {
     public void execute(Tuple tuple) {
       if (++nItems % 100000 == 0) {
         long latency = System.currentTimeMillis() - startTime;
-        System.out.println("Done " + nItems + " in " + latency);
+        System.out.println("Bolt processed " + nItems + " tuples in " + latency + " ms");
         GlobalMetrics.incr("selected_items");
       }
     }

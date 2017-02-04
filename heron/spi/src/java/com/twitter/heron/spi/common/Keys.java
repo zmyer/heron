@@ -15,6 +15,8 @@
 package com.twitter.heron.spi.common;
 
 public class Keys {
+  public static final String SCHEDULER_PROPERTIES = "heron.scheduler.properties";
+  public static final String SCHEDULER_COMMAND_LINE_PROPERTIES_OVERRIDE_OPTION = "P";
 
   protected Keys() {
   }
@@ -29,6 +31,14 @@ public class Keys {
 
   public static String environ() {
     return ConfigKeys.get("ENVIRON");
+  }
+
+  public static String dryRun() {
+    return ConfigKeys.get("DRY_RUN");
+  }
+
+  public static String dryRunFormat() {
+    return ConfigKeys.get("DRY_RUN_FORMAT_TYPE");
   }
 
   public static String verbose() {
@@ -163,8 +173,8 @@ public class Keys {
     return ConfigKeys.get("TOPOLOGY_DEFINITION_FILE");
   }
 
-  public static String topologyJarFile() {
-    return ConfigKeys.get("TOPOLOGY_JAR_FILE");
+  public static String topologyBinaryFile() {
+    return ConfigKeys.get("TOPOLOGY_BINARY_FILE");
   }
 
   public static String topologyPackageFile() {
@@ -251,10 +261,6 @@ public class Keys {
     return ConfigKeys.get("SCHEDULER_STATE_MANAGER_ADAPTOR");
   }
 
-  public static String packingClassInstance() {
-    return ConfigKeys.get("PACKING_CLASS_INSTANCE");
-  }
-
   public static String launcherClassInstance() {
     return ConfigKeys.get("LAUNCHER_CLASS_INSTANCE");
   }
@@ -269,10 +275,6 @@ public class Keys {
 
   public static String componentJvmOpts() {
     return ConfigKeys.get("COMPONENT_JVM_OPTS_IN_BASE64");
-  }
-
-  public static String instanceDistribution() {
-    return ConfigKeys.get("INSTANCE_DISTRIBUTION");
   }
 
   public static String instanceJvmOpts() {
@@ -323,6 +325,10 @@ public class Keys {
     return ConfigKeys.get("SANDBOX_PACKING_YAML");
   }
 
+  public static String overrideSandboxFile() {
+    return ConfigKeys.get("SANDBOX_OVERRIDE_YAML");
+  }
+
   public static String schedulerSandboxFile() {
     return ConfigKeys.get("SANDBOX_SCHEDULER_YAML");
   }
@@ -353,6 +359,10 @@ public class Keys {
 
   public static String shellSandboxBinary() {
     return ConfigKeys.get("SANDBOX_SHELL_BINARY");
+  }
+
+  public static String pythonInstanceSandboxBinary() {
+    return ConfigKeys.get("SANDBOX_PYTHON_INSTANCE_BINARY");
   }
 
   public static String schedulerSandboxJar() {

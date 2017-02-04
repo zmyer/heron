@@ -14,16 +14,20 @@
 
 package com.twitter.heron.statemgr;
 
+import javax.naming.OperationNotSupportedException;
+
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 
 import com.twitter.heron.api.generated.TopologyAPI;
 import com.twitter.heron.proto.scheduler.Scheduler;
 import com.twitter.heron.proto.system.ExecutionEnvironment;
+import com.twitter.heron.proto.system.PackingPlans;
 import com.twitter.heron.proto.system.PhysicalPlans;
 import com.twitter.heron.proto.tmaster.TopologyMaster;
 import com.twitter.heron.spi.common.Config;
 import com.twitter.heron.spi.statemgr.IStateManager;
+import com.twitter.heron.spi.statemgr.Lock;
 import com.twitter.heron.spi.statemgr.WatchCallback;
 
 public class NullStateManager implements IStateManager {
@@ -37,6 +41,16 @@ public class NullStateManager implements IStateManager {
   @Override
   public void close() {
 
+  }
+
+  @Override
+  public Lock getLock(String topologyName, LockName lockName) {
+    throw new RuntimeException(new OperationNotSupportedException());
+  }
+
+  @Override
+  public ListenableFuture<Boolean> deleteLocks(String topologyName) {
+    throw new RuntimeException(new OperationNotSupportedException());
   }
 
   @Override
@@ -61,6 +75,13 @@ public class NullStateManager implements IStateManager {
   @Override
   public ListenableFuture<Boolean> setTopology(
       TopologyAPI.Topology topology,
+      String topologyName) {
+    return nullFuture;
+  }
+
+  @Override
+  public ListenableFuture<Boolean> setPackingPlan(
+      PackingPlans.PackingPlan packingPlan,
       String topologyName) {
     return nullFuture;
   }
@@ -91,6 +112,11 @@ public class NullStateManager implements IStateManager {
 
   @Override
   public ListenableFuture<Boolean> deleteTopology(String topologyName) {
+    return nullFuture;
+  }
+
+  @Override
+  public ListenableFuture<Boolean> deletePackingPlan(String topologyName) {
     return nullFuture;
   }
 
@@ -127,6 +153,13 @@ public class NullStateManager implements IStateManager {
 
   @Override
   public ListenableFuture<ExecutionEnvironment.ExecutionState> getExecutionState(
+      WatchCallback watcher,
+      String topologyName) {
+    return SettableFuture.create();
+  }
+
+  @Override
+  public ListenableFuture<PackingPlans.PackingPlan> getPackingPlan(
       WatchCallback watcher,
       String topologyName) {
     return SettableFuture.create();

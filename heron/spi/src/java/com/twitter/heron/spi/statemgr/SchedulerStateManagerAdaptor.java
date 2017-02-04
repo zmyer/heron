@@ -25,6 +25,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.twitter.heron.api.generated.TopologyAPI;
 import com.twitter.heron.proto.scheduler.Scheduler;
 import com.twitter.heron.proto.system.ExecutionEnvironment;
+import com.twitter.heron.proto.system.PackingPlans;
 import com.twitter.heron.proto.system.PhysicalPlans;
 import com.twitter.heron.proto.tmaster.TopologyMaster;
 
@@ -69,11 +70,19 @@ public class SchedulerStateManagerAdaptor {
   protected <V> V awaitResult(ListenableFuture<V> future, int time, TimeUnit unit) {
     try {
       return future.get(time, unit);
-    } catch (InterruptedException | TimeoutException | ExecutionException e) {
+    } catch (ExecutionException e) {
+      LOG.log(Level.WARNING, "Exception processing future: " + e.getMessage());
+      future.cancel(true);
+      return null;
+    } catch (InterruptedException | TimeoutException e) {
       LOG.log(Level.SEVERE, "Exception processing future ", e);
       future.cancel(true);
       return null;
     }
+  }
+
+  public Lock getLock(String topologyName, IStateManager.LockName lockName) {
+    return delegate.getLock(topologyName, lockName);
   }
 
   /**
@@ -106,6 +115,20 @@ public class SchedulerStateManagerAdaptor {
   }
 
   /**
+   * Update the topology definition for the given topology. If the topology doesn't exist,
+   * create it. If it does, update it.
+   *
+   * @param topologyName the name of the topology
+   * @return Boolean - Success or Failure
+   */
+  public Boolean updateTopology(TopologyAPI.Topology topology, String topologyName) {
+    if (getTopology(topologyName) != null) {
+      deleteTopology(topologyName);
+    }
+    return setTopology(topology, topologyName);
+  }
+
+  /**
    * Set the scheduler location for the given topology
    *
    * @return Boolean - Success or Failure
@@ -114,6 +137,30 @@ public class SchedulerStateManagerAdaptor {
       Scheduler.SchedulerLocation location,
       String topologyName) {
     return awaitResult(delegate.setSchedulerLocation(location, topologyName));
+  }
+
+  /**
+   * Set the packing plan for the given topology
+   *
+   * @param packingPlan the packing plan of the topology
+   * @return Boolean - Success or Failure
+   */
+  public Boolean setPackingPlan(PackingPlans.PackingPlan packingPlan, String topologyName) {
+    return awaitResult(delegate.setPackingPlan(packingPlan, topologyName));
+  }
+
+  /**
+   * Update the packing plan for the given topology. If the packing plan doesn't exist, create it.
+   * If it does, update it.
+   *
+   * @param packingPlan the packing plan of the topology
+   * @return Boolean - Success or Failure
+   */
+  public Boolean updatePackingPlan(PackingPlans.PackingPlan packingPlan, String topologyName) {
+    if (getPackingPlan(topologyName) != null) {
+      deletePackingPlan(topologyName);
+    }
+    return setPackingPlan(packingPlan, topologyName);
   }
 
   /**
@@ -144,6 +191,15 @@ public class SchedulerStateManagerAdaptor {
   }
 
   /**
+   * Delete the packing plan for the given topology
+   *
+   * @return Boolean - Success or Failure
+   */
+  public Boolean deletePackingPlan(String topologyName) {
+    return awaitResult(delegate.deletePackingPlan(topologyName));
+  }
+
+  /**
    * Delete the physical plan for the given topology
    *
    * @return Boolean - Success or Failure
@@ -159,6 +215,10 @@ public class SchedulerStateManagerAdaptor {
    */
   public Boolean deleteSchedulerLocation(String topologyName) {
     return awaitResult(delegate.deleteSchedulerLocation(topologyName));
+  }
+
+  public Boolean deleteLocks(String topologyName) {
+    return awaitResult(delegate.deleteLocks(topologyName));
   }
 
   /**
@@ -179,15 +239,14 @@ public class SchedulerStateManagerAdaptor {
     return awaitResult(delegate.getSchedulerLocation(null, topologyName));
   }
 
-// TODO(mfu): Currently this one is not used; comment it out.
-// /**
-//   * Get the topology definition for the given topology
-//   *
-//   * @return Topology
-//   */
-//  public TopologyAPI.Topology getTopology(String topologyName) {
-//    return awaitResult(delegate.getTopology(null, topologyName));
-//  }
+ /**
+   * Get the topology definition for the given topology
+   *
+   * @return Topology
+   */
+  public TopologyAPI.Topology getTopology(String topologyName) {
+    return awaitResult(delegate.getTopology(null, topologyName));
+  }
 
   /**
    * Get the execution state for the given topology
@@ -205,5 +264,14 @@ public class SchedulerStateManagerAdaptor {
    */
   public PhysicalPlans.PhysicalPlan getPhysicalPlan(String topologyName) {
     return awaitResult(delegate.getPhysicalPlan(null, topologyName));
+  }
+
+  /**
+   * Get the packing plan for the given topology
+   *
+   * @return PackingPlans.PackingPlan
+   */
+  public PackingPlans.PackingPlan getPackingPlan(String topologyName) {
+    return awaitResult(delegate.getPackingPlan(null, topologyName));
   }
 }

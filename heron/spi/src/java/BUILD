@@ -12,9 +12,11 @@ java_library(
         "**/spi/uploader/**/*.java",
         "**/spi/utils/**/*.java",
         "**/spi/statemgr/**/*.java",
+        "**/spi/metricsmgr/**/*.java",
     ]),
     deps = [
         "//heron/api/src/java:api-java",
+        "//heron/api/src/java:classification",
         "//heron/common/src/java:basics-java",
         "//heron/common/src/java:config-java",
         "//heron/proto:proto_common_java",
@@ -22,10 +24,11 @@ java_library(
         "//heron/proto:proto_scheduler_java",
         "//heron/proto:proto_tmaster_java",
         "//heron/proto:proto_topology_java",
+        "//heron/proto:proto_packing_plan_java",
         "//heron/proto:proto_physical_plan_java",
-        "@snakeyaml//jar",
-        "@guava//jar",
-        "@protobuf-java//jar",
+        "@org_yaml_snakeyaml//jar",
+        "@com_google_guava_guava//jar",
+        "@com_google_protobuf_protobuf_java//jar",
     ],
 )
 
@@ -50,22 +53,31 @@ utils_deps_files = \
         ":statemgr-spi-java",
         ":scheduler-spi-java",
         ":packing-spi-java",
+        ":metricsmgr-spi-java",
         "//heron/common/src/java:basics-java",
         "//heron/common/src/java:config-java",
         "//heron/api/src/java:api-java",
-        "@guava//jar",
+        "@com_google_guava_guava//jar",
     ]
 
 scheduler_deps_files = \
     heron_java_proto_files() + [
         ":common-spi-java",
+        ":packing-spi-java",
+        "//heron/api/src/java:classification",
         "//heron/common/src/java:config-java",
-        "@guava//jar",
+        "@com_google_guava_guava//jar",
     ]
 
 packing_deps_files = [
+    "//heron/api/src/java:api-java",
     ":common-spi-java",
+    "//heron/api/src/java:classification",
+    "//heron/common/src/java:basics-java",
     "//heron/common/src/java:config-java",
+    "//heron/proto:proto_packing_plan_java",
+    "//heron/proto:proto_topology_java",
+    "@com_google_guava_guava//jar",
 ]
 
 uploader_deps_files = [
@@ -76,8 +88,9 @@ uploader_deps_files = [
 statemgr_deps_files = \
     heron_java_proto_files() + [
         ":common-spi-java",
+        "//heron/api/src/java:classification",
         "//heron/common/src/java:config-java",
-        "@guava//jar",
+        "@com_google_guava_guava//jar",
     ]
 
 java_library(
@@ -88,8 +101,9 @@ java_library(
     deps = [
         "//heron/common/src/java:basics-java",
         "//heron/common/src/java:config-java",
+        "@com_google_guava_guava//jar",
     ],
-    resources = common_resource_files, 
+    resources = common_resource_files,
 )
 
 java_library(
@@ -97,7 +111,7 @@ java_library(
     srcs = glob([
         "**/spi/utils/**/*.java",
     ]),
-    deps = utils_deps_files, 
+    deps = utils_deps_files,
 )
 
 java_library(
@@ -105,7 +119,7 @@ java_library(
     srcs = glob([
         "**/spi/packing/**/*.java",
     ]),
-    deps = packing_deps_files, 
+    deps = packing_deps_files,
 )
 
 java_library(
@@ -113,7 +127,27 @@ java_library(
     srcs = glob([
         "**/spi/scheduler/**/*.java",
     ]),
-    deps = scheduler_deps_files, 
+    deps = scheduler_deps_files,
+)
+
+java_library(
+    name='shell-utils-java',
+    srcs = glob([
+        "**/spi/utils/ShellUtils.java",
+    ]),
+    deps = [ "@com_google_guava_guava//jar" ],
+)
+
+java_library(
+    name='network-utils-java',
+    srcs = glob([
+        "**/spi/utils/NetworkUtils.java",
+    ]),
+    deps = [
+        ":common-spi-java",
+        ":shell-utils-java",
+        "//heron/common/src/java:basics-java",
+    ],
 )
 
 java_library(
@@ -145,4 +179,27 @@ java_library(
         ["**/spi/statemgr/**/*.java"],
     ),
     deps = statemgr_deps_files,
+)
+
+java_binary(
+    name = "spi-unshaded",
+    srcs = glob([
+        "**/spi/common/**/*.java",
+        "**/spi/metricsmgr/**/*.java",
+        "**/spi/packing/**/*.java",
+        "**/spi/scheduler/**/*.java",
+        "**/spi/statemgr/**/*.java",
+        "**/spi/uploader/**/*.java",
+        "**/spi/utils/**/*.java",
+    ]),
+    deps = [
+        "//heron/api/src/java:classification"
+    ] + utils_deps_files,
+)
+
+genrule(
+    name = "heron-spi-jar",
+    srcs = [":spi-unshaded_deploy.jar"],
+    outs = ["heron-spi.jar"],
+    cmd  = "cp $< $@",
 )

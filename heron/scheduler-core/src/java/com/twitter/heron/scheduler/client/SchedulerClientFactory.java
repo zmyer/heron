@@ -18,12 +18,13 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.twitter.heron.proto.scheduler.Scheduler;
+import com.twitter.heron.scheduler.utils.LauncherUtils;
+import com.twitter.heron.scheduler.utils.Runtime;
 import com.twitter.heron.spi.common.Config;
 import com.twitter.heron.spi.common.Context;
 import com.twitter.heron.spi.scheduler.IScheduler;
+import com.twitter.heron.spi.scheduler.SchedulerException;
 import com.twitter.heron.spi.statemgr.SchedulerStateManagerAdaptor;
-import com.twitter.heron.spi.utils.ReflectionUtils;
-import com.twitter.heron.spi.utils.Runtime;
 
 public class SchedulerClientFactory {
   private static final Logger LOG = Logger.getLogger(SchedulerClientFactory.class.getName());
@@ -43,7 +44,7 @@ public class SchedulerClientFactory {
    *
    * @return getSchedulerClient created. return null if failed to create ISchedulerClient instance
    */
-  public ISchedulerClient getSchedulerClient() {
+  public ISchedulerClient getSchedulerClient() throws SchedulerException {
     LOG.fine("Creating scheduler client");
     ISchedulerClient schedulerClient;
 
@@ -55,8 +56,7 @@ public class SchedulerClientFactory {
           statemgr.getSchedulerLocation(Runtime.topologyName(runtime));
 
       if (schedulerLocation == null) {
-        LOG.log(Level.SEVERE, "Failed to get scheduler location");
-        return null;
+        throw new SchedulerException("Failed to get scheduler location from state manager");
       }
 
       LOG.log(Level.FINE, "Scheduler is listening on location: {0} ", schedulerLocation.toString());
@@ -65,16 +65,10 @@ public class SchedulerClientFactory {
           new HttpServiceSchedulerClient(config, runtime, schedulerLocation.getHttpEndpoint());
     } else {
       // create an instance of scheduler
-      final String schedulerClass = Context.schedulerClass(config);
-      final IScheduler scheduler;
-      try {
-        scheduler = ReflectionUtils.newInstance(schedulerClass);
-      } catch (ClassNotFoundException | InstantiationException | IllegalAccessException e) {
-        LOG.log(Level.SEVERE, "Failed to reflect new instance", e);
-        return null;
-      }
-      LOG.fine("Invoke scheduler as a library");
+      final IScheduler scheduler = LauncherUtils.getInstance()
+          .getSchedulerInstance(config, runtime);
 
+      LOG.fine("Invoke scheduler as a library");
       schedulerClient = new LibrarySchedulerClient(config, runtime, scheduler);
     }
 

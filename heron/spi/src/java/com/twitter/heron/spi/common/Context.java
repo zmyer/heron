@@ -14,6 +14,10 @@
 
 package com.twitter.heron.spi.common;
 
+import com.twitter.heron.common.basics.ByteAmount;
+import com.twitter.heron.common.basics.DryRunFormatType;
+import com.twitter.heron.common.basics.PackageType;
+
 public class Context {
 
   protected Context() {
@@ -29,6 +33,14 @@ public class Context {
 
   public static String environ(Config cfg) {
     return cfg.getStringValue(ConfigKeys.get("ENVIRON"));
+  }
+
+  public static Boolean dryRun(Config cfg) {
+    return cfg.getBooleanValue(ConfigKeys.get("DRY_RUN"), false);
+  }
+
+  public static DryRunFormatType dryRunFormatType(Config cfg) {
+    return cfg.getDryRunFormatType(ConfigKeys.get("DRY_RUN_FORMAT_TYPE"));
   }
 
   public static Boolean verbose(Config cfg) {
@@ -47,8 +59,8 @@ public class Context {
     return cfg.getStringValue(ConfigKeys.get("BUILD_TIME"));
   }
 
-  public static String buildTimeStamp(Config cfg) {
-    return cfg.getStringValue(ConfigKeys.get("BUILD_TIMESTAMP"));
+  public static Long buildTimeStamp(Config cfg) {
+    return cfg.getLongValue(ConfigKeys.get("BUILD_TIMESTAMP"));
   }
 
   public static String buildHost(Config cfg) {
@@ -81,6 +93,10 @@ public class Context {
 
   public static String packingClass(Config cfg) {
     return cfg.getStringValue(ConfigKeys.get("PACKING_CLASS"));
+  }
+
+  public static String repackingClass(Config cfg) {
+    return cfg.getStringValue(ConfigKeys.get("REPACKING_CLASS"));
   }
 
   public static String stateManagerClass(Config cfg) {
@@ -159,32 +175,32 @@ public class Context {
     return cfg.getStringValue(ConfigKeys.get("TOPOLOGY_DEFINITION_FILE"));
   }
 
-  public static String topologyJarFile(Config cfg) {
-    return cfg.getStringValue(ConfigKeys.get("TOPOLOGY_JAR_FILE"));
+  public static String topologyBinaryFile(Config cfg) {
+    return cfg.getStringValue(ConfigKeys.get("TOPOLOGY_BINARY_FILE"));
   }
 
   public static String topologyPackageFile(Config cfg) {
     return cfg.getStringValue(ConfigKeys.get("TOPOLOGY_PACKAGE_FILE"));
   }
 
-  public static String topologyPackageType(Config cfg) {
-    return cfg.getStringValue(ConfigKeys.get("TOPOLOGY_PACKAGE_TYPE"));
+  public static PackageType topologyPackageType(Config cfg) {
+    return cfg.getPackageType(ConfigKeys.get("TOPOLOGY_PACKAGE_TYPE"));
   }
 
-  public static Long stmgrRam(Config cfg) {
-    return cfg.getLongValue(ConfigKeys.get("STMGR_RAM"));
+  public static ByteAmount stmgrRam(Config cfg) {
+    return cfg.getByteAmountValue(ConfigKeys.get("STMGR_RAM"));
   }
 
-  public static Long instanceRam(Config cfg) {
-    return cfg.getLongValue(ConfigKeys.get("INSTANCE_RAM"));
+  public static ByteAmount instanceRam(Config cfg) {
+    return cfg.getByteAmountValue(ConfigKeys.get("INSTANCE_RAM"));
   }
 
   public static Double instanceCpu(Config cfg) {
     return cfg.getDoubleValue(ConfigKeys.get("INSTANCE_CPU"));
   }
 
-  public static Long instanceDisk(Config cfg) {
-    return cfg.getLongValue(ConfigKeys.get("INSTANCE_DISK"));
+  public static ByteAmount instanceDisk(Config cfg) {
+    return cfg.getByteAmountValue(ConfigKeys.get("INSTANCE_DISK"));
   }
 
   public static String heronHome(Config cfg) {
@@ -275,6 +291,10 @@ public class Context {
     return cfg.getStringValue(Keys.packingSandboxFile());
   }
 
+  public static String overrideSandboxFile(Config cfg) {
+    return cfg.getStringValue(Keys.overrideSandboxFile());
+  }
+
   public static String schedulerSandboxFile(Config cfg) {
     return cfg.getStringValue(Keys.schedulerSandboxFile());
   }
@@ -305,6 +325,10 @@ public class Context {
 
   public static String shellSandboxBinary(Config cfg) {
     return cfg.getStringValue(ConfigKeys.get("SANDBOX_SHELL_BINARY"));
+  }
+
+  public static final String pythonInstanceSandboxBinary(Config cfg) {
+    return cfg.getStringValue(ConfigKeys.get("SANDBOX_PYTHON_INSTANCE_BINARY"));
   }
 
   public static String schedulerSandboxJar(Config cfg) {

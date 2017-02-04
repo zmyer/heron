@@ -11,24 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+''' filestatemanager.py '''
 import os
-import sys
 import threading
-import time
-import traceback
 
 from collections import defaultdict
 
 from heron.statemgrs.src.python.statemanager import StateManager
-from heron.statemgrs.src.python.stateexceptions import StateException
 
 from heron.proto.execution_state_pb2 import ExecutionState
+from heron.proto.packing_plan_pb2 import PackingPlan
 from heron.proto.physical_plan_pb2 import PhysicalPlan
 from heron.proto.scheduler_pb2 import SchedulerLocation
 from heron.proto.tmaster_pb2 import TMasterLocation
 from heron.proto.topology_pb2 import Topology
 
+# pylint: disable=too-many-instance-attributes
 class FileStateManager(StateManager):
   """
   State manager which reads states from local file system.
@@ -43,6 +41,7 @@ class FileStateManager(StateManager):
     # This is the cache of the state directories.
     self.topologies_directory = {}
     self.execution_state_directory = {}
+    self.packing_plan_directory = {}
     self.pplan_directory = {}
     self.tmaster_directory = {}
     self.scheduler_location_directory = {}
@@ -57,6 +56,7 @@ class FileStateManager(StateManager):
     # to the callback.
     self.topology_watchers = defaultdict(lambda: [])
     self.execution_state_watchers = defaultdict(lambda: [])
+    self.packing_plan_watchers = defaultdict(lambda: [])
     self.pplan_watchers = defaultdict(lambda: [])
     self.tmaster_watchers = defaultdict(lambda: [])
     self.scheduler_location_watchers = defaultdict(lambda: [])
@@ -64,12 +64,19 @@ class FileStateManager(StateManager):
     # Instantiate the monitoring thread.
     self.monitoring_thread = threading.Thread(target=self.monitor)
 
+    # cancellable sleep
+    self.event = threading.Event()
+
+  # pylint: disable=attribute-defined-outside-init
   def start(self):
+    """ start monitoring thread """
     self.monitoring_thread_stop_signal = False
     self.monitoring_thread.start()
 
   def stop(self):
+    """" stop monitoring thread """
     self.monitoring_thread_stop_signal = True
+    self.event.set()
 
   def monitor(self):
     """
@@ -100,41 +107,62 @@ class FileStateManager(StateManager):
 
     while not self.monitoring_thread_stop_signal:
       topologies_path = self.get_topologies_path()
-      topologies = filter(lambda f: os.path.isfile(os.path.join(topologies_path, f)), os.listdir(topologies_path))
+
+      topologies = []
+      if os.path.isdir(topologies_path):
+        topologies = filter(
+            lambda f: os.path.isfile(os.path.join(topologies_path, f)), os.listdir(topologies_path))
       if set(topologies) != set(self.topologies_directory):
         for callback in self.topologies_watchers:
           callback(topologies)
       self.topologies_directory = topologies
 
-      trigger_watches_based_on_files(self.topology_watchers, topologies_path, self.topologies_directory, Topology)
+      trigger_watches_based_on_files(
+          self.topology_watchers, topologies_path, self.topologies_directory, Topology)
 
       # Get the directory name for execution state
       execution_state_path = os.path.dirname(self.get_execution_state_path(""))
-      trigger_watches_based_on_files(self.execution_state_watchers, execution_state_path, self.execution_state_directory, ExecutionState)
+      trigger_watches_based_on_files(
+          self.execution_state_watchers, execution_state_path,
+          self.execution_state_directory, ExecutionState)
+
+      # Get the directory name for packing_plan
+      packing_plan_path = os.path.dirname(self.get_packing_plan_path(""))
+      trigger_watches_based_on_files(
+          self.packing_plan_watchers, packing_plan_path, self.packing_plan_directory, PackingPlan)
 
       # Get the directory name for pplan
       pplan_path = os.path.dirname(self.get_pplan_path(""))
-      trigger_watches_based_on_files(self.pplan_watchers, pplan_path, self.pplan_directory, PhysicalPlan)
+      trigger_watches_based_on_files(
+          self.pplan_watchers, pplan_path,
+          self.pplan_directory, PhysicalPlan)
 
       # Get the directory name for tmaster
       tmaster_path = os.path.dirname(self.get_tmaster_path(""))
-      trigger_watches_based_on_files(self.tmaster_watchers, tmaster_path, self.tmaster_directory, TMasterLocation)
+      trigger_watches_based_on_files(
+          self.tmaster_watchers, tmaster_path,
+          self.tmaster_directory, TMasterLocation)
 
       # Get the directory name for scheduler location
       scheduler_location_path = os.path.dirname(self.get_scheduler_location_path(""))
-      trigger_watches_based_on_files(self.scheduler_location_watchers, scheduler_location_path, self.scheduler_location_directory, SchedulerLocation)
+      trigger_watches_based_on_files(
+          self.scheduler_location_watchers, scheduler_location_path,
+          self.scheduler_location_directory, SchedulerLocation)
 
       # Sleep for some time
-      time.sleep(5)
+      self.event.wait(timeout=5)
 
   def get_topologies(self, callback=None):
+    """get topologies"""
     if callback:
       self.topologies_watchers.append(callback)
     else:
       topologies_path = self.get_topologies_path()
-      return filter(lambda f: os.path.isfile(os.path.join(topologies_path, f)), os.listdir(topologies_path))
+      return filter(lambda f: os.path.isfile(os.path.join(topologies_path, f)),
+                    os.listdir(topologies_path))
 
   def get_topology(self, topologyName, callback=None):
+    """get topology"""
     if callback:
       self.topology_watchers[topologyName].append(callback)
     else:
@@ -157,7 +185,21 @@ class FileStateManager(StateManager):
     """
     pass
 
+  def get_packing_plan(self, topologyName, callback=None):
+    """ get packing plan """
+    if callback:
+      self.packing_plan_watchers[topologyName].append(callback)
+    else:
+      packing_plan_path = self.get_packing_plan_path(topologyName)
+      with open(packing_plan_path) as f:
+        data = f.read()
+        packing_plan = PackingPlan()
+        packing_plan.ParseFromString(data)
+
   def get_pplan(self, topologyName, callback=None):
+    """
+    Get physical plan of a topology
+    """
     if callback:
       self.pplan_watchers[topologyName].append(callback)
     else:
@@ -181,6 +223,9 @@ class FileStateManager(StateManager):
     pass
 
   def get_execution_state(self, topologyName, callback=None):
+    """
+    Get execution state
+    """
     if callback:
       self.execution_state_watchers[topologyName].append(callback)
     else:
@@ -204,6 +249,9 @@ class FileStateManager(StateManager):
     pass
 
   def get_tmaster(self, topologyName, callback=None):
+    """
+    Get tmaster
+    """
     if callback:
       self.tmaster_watchers[topologyName].append(callback)
     else:
@@ -215,6 +263,9 @@ class FileStateManager(StateManager):
         return tmaster
 
   def get_scheduler_location(self, topologyName, callback=None):
+    """
+    Get scheduler location
+    """
     if callback:
       self.scheduler_location_watchers[topologyName].append(callback)
     else:
@@ -224,4 +275,3 @@ class FileStateManager(StateManager):
         scheduler_location = SchedulerLocation()
         scheduler_location.ParseFromString(data)
         return scheduler_location
-

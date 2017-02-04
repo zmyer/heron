@@ -55,6 +55,7 @@ install_jdk8() {
     apt-get -y install oracle-java8-installer oracle-java8-set-default vim wget screen git    
 }
 
+bazelVersion=0.2.3
 bazel_install() {
     install_jdk8
     apt-get install -y g++ automake cmake gcc-4.8 g++-4.8 zlib1g-dev zip pkg-config wget libssl-dev
@@ -65,15 +66,15 @@ bazel_install() {
             tar xvfz libunwind-1.1.tar.gz
             cd libunwind-1.1 && ./configure --prefix=/usr && make install 
         popd
-        wget 'https://github.com/bazelbuild/bazel/releases/download/0.1.2/bazel-0.1.2-installer-linux-x86_64.sh'
-        chmod +x bazel-0.1.2-installer-linux-x86_64.sh
-        ./bazel-0.1.2-installer-linux-x86_64.sh --user    
+        wget -O /tmp/bazel.sh https://github.com/bazelbuild/bazel/releases/download/${bazelVersion}/bazel-${bazelVersion}-installer-linux-x86_64.sh
+        chmod +x /tmp/bazel.sh
+        /tmp/bazel.sh --user 
     popd
 }
 
 build_heron() {
     pushd /tmp
-        wget http://mirror.sdunix.com/gnu/libtool//libtool-2.4.6.tar.gz
+        wget http://ftpmirror.gnu.org/libtool/libtool-2.4.6.tar.gz
         tar xf libtool*
         cd libtool-2.4.6
         sh configure --prefix /usr/local
@@ -130,7 +131,7 @@ echo "deb http://get.docker.com/ubuntu docker main" > /etc/apt/sources.list.d/do
 apt-get -qy update
 
 # install deps
-apt-get install -qy vim zip mc curl wget openjdk-7-jre scala git
+apt-get install -qy vim zip mc curl wget openjdk-7-jre scala git python-setuptools python-dev
 
 install_mesos $mode
 if [ $mode == "master" ]; then 

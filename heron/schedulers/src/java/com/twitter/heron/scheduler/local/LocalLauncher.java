@@ -23,13 +23,13 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.twitter.heron.common.basics.SysUtils;
+import com.twitter.heron.scheduler.utils.Runtime;
+import com.twitter.heron.scheduler.utils.SchedulerUtils;
 import com.twitter.heron.spi.common.Config;
 import com.twitter.heron.spi.common.Context;
-import com.twitter.heron.spi.common.PackingPlan;
-import com.twitter.heron.spi.common.ShellUtils;
+import com.twitter.heron.spi.packing.PackingPlan;
 import com.twitter.heron.spi.scheduler.ILauncher;
-import com.twitter.heron.spi.utils.Runtime;
-import com.twitter.heron.spi.utils.SchedulerUtils;
+import com.twitter.heron.spi.utils.ShellUtils;
 
 /**
  * Launch topology locally to a working directory.
@@ -80,8 +80,8 @@ public class LocalLauncher implements ILauncher {
       return false;
     }
 
-    LOG.info(String.format(
-        "For checking the status and logs of the topology, use the working directory %s",
+    LOG.log(Level.FINE, String.format(
+        "To check the status and logs of the topology, use the working directory %s",
         LocalContext.workingDirectory(config)));
 
     return true;

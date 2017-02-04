@@ -23,12 +23,12 @@ import java.util.logging.Logger;
 
 import com.twitter.heron.common.basics.SysUtils;
 import com.twitter.heron.proto.scheduler.Scheduler;
+import com.twitter.heron.scheduler.utils.Runtime;
+import com.twitter.heron.scheduler.utils.SchedulerUtils;
 import com.twitter.heron.spi.common.Config;
 import com.twitter.heron.spi.common.Context;
-import com.twitter.heron.spi.common.PackingPlan;
+import com.twitter.heron.spi.packing.PackingPlan;
 import com.twitter.heron.spi.scheduler.IScheduler;
-import com.twitter.heron.spi.utils.Runtime;
-import com.twitter.heron.spi.utils.SchedulerUtils;
 
 /**
  * Schedules a Heron topology in a HPC cluster using the Slurm Scheduler.
@@ -75,7 +75,7 @@ public class SlurmScheduler implements IScheduler {
 
   @Override
   public boolean onSchedule(PackingPlan packing) {
-    if (packing == null || packing.containers.isEmpty()) {
+    if (packing == null || packing.getContainers().isEmpty()) {
       LOG.log(Level.SEVERE, "No container requested. Can't schedule");
       return false;
     }
@@ -110,6 +110,12 @@ public class SlurmScheduler implements IScheduler {
     return true;
   }
 
+  @Override
+  public boolean onUpdate(Scheduler.UpdateTopologyRequest request) {
+    LOG.severe("Topology onUpdate not implemented by this scheduler.");
+    return false;
+  }
+
   protected String getJobIdFilePath() {
     return new File(workingDirectory, SlurmContext.jobIdFile(config)).getPath();
   }
@@ -119,9 +125,9 @@ public class SlurmScheduler implements IScheduler {
   }
 
   protected String[] getExecutorCommand(PackingPlan packing) {
-    List<Integer> freePorts = new ArrayList<>(SchedulerUtils.PORTS_REQUIRED_FOR_EXECUTOR);
+    List<String> freePorts = new ArrayList<>(SchedulerUtils.PORTS_REQUIRED_FOR_EXECUTOR);
     for (int i = 0; i < SchedulerUtils.PORTS_REQUIRED_FOR_EXECUTOR; i++) {
-      freePorts.add(SysUtils.getFreePort());
+      freePorts.add(Integer.toString(SysUtils.getFreePort()));
     }
 
     String[] executorCmd = SchedulerUtils.executorCommandArgs(this.config, this.runtime, freePorts);

@@ -70,7 +70,7 @@ public class FileUtilsTest {
   @Test
   public void testWriteToFile() throws Exception {
     String currentWorkingDir = Paths.get("").toAbsolutePath().normalize().toString();
-    Assert.assertFalse(FileUtils.writeToFile(currentWorkingDir, null, false));
+    Assert.assertFalse(FileUtils.writeToFile(currentWorkingDir, new byte[]{}, false));
 
     PowerMockito.mockStatic(Files.class);
     String randomString = UUID.randomUUID().toString();
@@ -121,17 +121,7 @@ public class FileUtilsTest {
     Assert.assertFalse(FileUtils.isDirectoryExists(""));
   }
 
-  /**
-   * Method: isOriginalPackageJar(String packageFilename)
-   */
-  @Test
-  public void testIsOriginalPackageJar() throws Exception {
-    String jarFile = "a.jar";
-    Assert.assertTrue(FileUtils.isOriginalPackageJar(jarFile));
 
-    String notJarFile = "b.tar";
-    Assert.assertFalse(FileUtils.isOriginalPackageJar(notJarFile));
-  }
 
   /**
    * Method: getBaseName(String file)

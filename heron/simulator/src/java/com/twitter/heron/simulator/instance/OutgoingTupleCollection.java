@@ -18,12 +18,10 @@ import com.twitter.heron.api.generated.TopologyAPI;
 import com.twitter.heron.common.basics.Communicator;
 import com.twitter.heron.common.basics.SingletonRegistry;
 import com.twitter.heron.common.config.SystemConfig;
-import com.twitter.heron.common.utils.misc.PhysicalPlanHelper;
 import com.twitter.heron.proto.system.HeronTuples;
 
 /**
- * Implements OutgoingTupleCollection will be able to handle some basic methods for
- * sending out tuples
+ * Implements OutgoingTupleCollection will be able to handle some basic methods for send out tuples
  * 1. initNewControlTuple or initNewDataTuple
  * 2. addDataTuple, addAckTuple and addFailTuple
  * 3. flushRemaining tuples and sent out the tuples
@@ -31,7 +29,7 @@ import com.twitter.heron.proto.system.HeronTuples;
  * In fact, when talking about to send out tuples, we mean we push them to the out queues.
  */
 public class OutgoingTupleCollection {
-  protected final PhysicalPlanHelper helper;
+  protected final String componentName;
   // We have just one outQueue responsible for both control tuples and data tuples
   private final Communicator<HeronTuples.HeronTupleSet> outQueue;
   private final SystemConfig systemConfig;
@@ -40,19 +38,31 @@ public class OutgoingTupleCollection {
   private HeronTuples.HeronControlTupleSet.Builder currentControlTuple;
 
   // Total data emitted in bytes for the entire life
-  private long totalDataEmittedInBytes = 0;
+  private long totalDataEmittedInBytes;
+
+  // Current size in bytes for data types to pack into the HeronTupleSet
+  private long currentDataTupleSizeInBytes;
+  // Maximum data tuple size in bytes we can put in one HeronTupleSet
+  private long maxDataTupleSizeInBytes;
 
   private int dataTupleSetCapacity;
   private int controlTupleSetCapacity;
 
   public OutgoingTupleCollection(
-      PhysicalPlanHelper helper,
+      String componentName,
       Communicator<HeronTuples.HeronTupleSet> outQueue) {
     this.outQueue = outQueue;
-    this.helper = helper;
+    this.componentName = componentName;
     this.systemConfig =
         (SystemConfig) SingletonRegistry.INSTANCE.getSingleton(SystemConfig.HERON_SYSTEM_CONFIG);
+
+    // Initialize the values in constructor
+    this.totalDataEmittedInBytes = 0;
+    this.currentDataTupleSizeInBytes = 0;
+
+    // Read the config values
     this.dataTupleSetCapacity = systemConfig.getInstanceSetDataTupleCapacity();
+    this.maxDataTupleSizeInBytes = systemConfig.getInstanceSetDataTupleSizeBytes();
     this.controlTupleSetCapacity = systemConfig.getInstanceSetControlTupleCapacity();
   }
 
@@ -66,18 +76,20 @@ public class OutgoingTupleCollection {
       long tupleSizeInBytes) {
     if (currentDataTuple == null
         || !currentDataTuple.getStream().getId().equals(streamId)
-        || currentDataTuple.getTuplesCount() > dataTupleSetCapacity) {
+        || currentDataTuple.getTuplesCount() >= dataTupleSetCapacity
+        || currentDataTupleSizeInBytes >= maxDataTupleSizeInBytes) {
       initNewDataTuple(streamId);
     }
     currentDataTuple.addTuples(newTuple);
 
+    currentDataTupleSizeInBytes += tupleSizeInBytes;
     totalDataEmittedInBytes += tupleSizeInBytes;
   }
 
   public void addAckTuple(HeronTuples.AckTuple.Builder newTuple, long tupleSizeInBytes) {
     if (currentControlTuple == null
         || currentControlTuple.getFailsCount() > 0
-        || currentControlTuple.getAcksCount() > controlTupleSetCapacity) {
+        || currentControlTuple.getAcksCount() >= controlTupleSetCapacity) {
       initNewControlTuple();
     }
     currentControlTuple.addAcks(newTuple);
@@ -89,7 +101,7 @@ public class OutgoingTupleCollection {
   public void addFailTuple(HeronTuples.AckTuple.Builder newTuple, long tupleSizeInBytes) {
     if (currentControlTuple == null
         || currentControlTuple.getAcksCount() > 0
-        || currentControlTuple.getFailsCount() > controlTupleSetCapacity) {
+        || currentControlTuple.getFailsCount() >= controlTupleSetCapacity) {
       initNewControlTuple();
     }
     currentControlTuple.addFails(newTuple);
@@ -100,9 +112,13 @@ public class OutgoingTupleCollection {
 
   private void initNewDataTuple(String streamId) {
     flushRemaining();
+
+    // Reset the set for data tuple
+    currentDataTupleSizeInBytes = 0;
+
     TopologyAPI.StreamId.Builder sbldr = TopologyAPI.StreamId.newBuilder();
     sbldr.setId(streamId);
-    sbldr.setComponentName(helper.getMyComponent());
+    sbldr.setComponentName(componentName);
     currentDataTuple = HeronTuples.HeronDataTupleSet.newBuilder();
     currentDataTuple.setStream(sbldr);
   }

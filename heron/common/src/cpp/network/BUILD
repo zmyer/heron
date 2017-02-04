@@ -36,6 +36,7 @@ cc_library(
         "packet.h",
         "event_loop_impl.h",
         "server.h",
+        "mempool.h",
     ],
     hdrs = [
         "network.h",
@@ -46,7 +47,7 @@ cc_library(
         "-I$(GENDIR)/heron/common/src/cpp",
     ],
     deps = [
-        "//3rdparty/libevent:libevent-cxx",
+        "//third_party/libevent:libevent-cxx",
         "//heron/common/src/cpp/threads:threads-cxx",
         "//heron/common/src/cpp/errors:errors-cxx",
         "//heron/common/src/cpp/basics:basics-cxx",

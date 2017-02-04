@@ -24,6 +24,7 @@ import com.twitter.heron.api.metric.GlobalMetrics;
 import com.twitter.heron.api.serializer.IPluggableSerializer;
 import com.twitter.heron.api.spout.ISpout;
 import com.twitter.heron.api.spout.SpoutOutputCollector;
+import com.twitter.heron.api.topology.IUpdatable;
 import com.twitter.heron.api.utils.Utils;
 import com.twitter.heron.common.basics.Communicator;
 import com.twitter.heron.common.basics.Constants;
@@ -38,14 +39,12 @@ import com.twitter.heron.common.utils.topology.TopologyContextImpl;
 import com.twitter.heron.instance.IInstance;
 import com.twitter.heron.proto.system.HeronTuples;
 
-
 public class SpoutInstance implements IInstance {
   private static final Logger LOG = Logger.getLogger(SpoutInstance.class.getName());
 
-  private final ISpout spout;
-  private final SpoutOutputCollectorImpl collector;
-  private final IPluggableSerializer serializer;
-  private final SpoutMetrics spoutMetrics;
+  protected final ISpout spout;
+  protected final SpoutOutputCollectorImpl collector;
+  protected final SpoutMetrics spoutMetrics;
   // The spout will read Control tuples from streamInQueue
   private final Communicator<HeronTuples.HeronTupleSet> streamInQueue;
 
@@ -73,30 +72,28 @@ public class SpoutInstance implements IInstance {
     this.helper = helper;
     this.looper = looper;
     this.streamInQueue = streamInQueue;
-
     this.spoutMetrics = new SpoutMetrics();
     this.spoutMetrics.initMultiCountMetrics(helper);
-
-    TopologyContextImpl topologyContext = helper.getTopologyContext();
-    config = topologyContext.getTopologyConfig();
-    systemConfig = (SystemConfig) SingletonRegistry.INSTANCE.getSingleton(
+    this.config = helper.getTopologyContext().getTopologyConfig();
+    this.systemConfig = (SystemConfig) SingletonRegistry.INSTANCE.getSingleton(
         SystemConfig.HERON_SYSTEM_CONFIG);
     this.ackEnabled = Boolean.parseBoolean((String) config.get(Config.TOPOLOGY_ENABLE_ACKING));
     this.enableMessageTimeouts =
         Boolean.parseBoolean((String) config.get(Config.TOPOLOGY_ENABLE_MESSAGE_TIMEOUTS));
+
     LOG.info("Enable Ack: " + this.ackEnabled);
     LOG.info("EnableMessageTimeouts: " + this.enableMessageTimeouts);
 
     if (helper.getMySpout() == null) {
       throw new RuntimeException("HeronSpoutInstance has no spout in physical plan");
     }
-    serializer = SerializeDeSerializeHelper.getSerializer(config);
+
     // Get the spout. Notice, in fact, we will always use the deserialization way to get bolt.
-    if (helper.getMySpout().getComp().hasJavaObject()) {
-      spout = (ISpout) Utils.deserialize(
-          helper.getMySpout().getComp().getJavaObject().toByteArray());
-    } else if (helper.getMySpout().getComp().hasJavaClassName()) {
-      String spoutClassName = helper.getMySpout().getComp().getJavaClassName();
+    if (helper.getMySpout().getComp().hasSerializedObject()) {
+      this.spout = (ISpout) Utils.deserialize(
+          helper.getMySpout().getComp().getSerializedObject().toByteArray());
+    } else if (helper.getMySpout().getComp().hasClassName()) {
+      String spoutClassName = helper.getMySpout().getComp().getClassName();
       try {
         spout = (ISpout) Class.forName(spoutClassName).newInstance();
       } catch (ClassNotFoundException ex) {
@@ -110,7 +107,16 @@ public class SpoutInstance implements IInstance {
       throw new RuntimeException("Neither java_object nor java_class_name set for spout");
     }
 
+    IPluggableSerializer serializer = SerializeDeSerializeHelper.getSerializer(config);
     collector = new SpoutOutputCollectorImpl(serializer, helper, streamOutQueue, spoutMetrics);
+  }
+
+  @Override
+  public void update(PhysicalPlanHelper physicalPlanHelper) {
+    if (spout instanceof IUpdatable) {
+      ((IUpdatable) spout).update(physicalPlanHelper.getTopologyContext());
+    }
+    collector.updatePhysicalPlanHelper(physicalPlanHelper);
   }
 
   @Override
@@ -129,7 +135,7 @@ public class SpoutInstance implements IInstance {
     topologyContext.invokeHookPrepare();
 
     // Init the CustomStreamGrouping
-    helper.prepareForCustomStreamGrouping(topologyContext);
+    helper.prepareForCustomStreamGrouping();
 
     // Tasks happen in every time looper is waken up
     addSpoutsTasks();
@@ -179,7 +185,9 @@ public class SpoutInstance implements IInstance {
           // Notice: Tuples are not necessary emitted during nextTuple methods. We could emit
           // tuples as long as we invoke collector.emit(...)
           collector.sendOutTuples();
-        } else {
+        }
+
+        if (!collector.isOutQueuesAvailable()) {
           spoutMetrics.updateOutQueueFullCount();
         }
 
@@ -229,8 +237,7 @@ public class SpoutInstance implements IInstance {
                 && collector.isOutQueuesAvailable()
                 && collector.numInFlight() < maxSpoutPending)
             ||
-            (ackEnabled
-                && !streamInQueue.isEmpty()));
+            (ackEnabled && !streamInQueue.isEmpty()));
   }
 
   /**
@@ -246,28 +253,28 @@ public class SpoutInstance implements IInstance {
         && topologyState.equals(TopologyAPI.TopologyState.RUNNING);
   }
 
-  private void produceTuple() {
+  protected void produceTuple() {
     int maxSpoutPending = TypeUtils.getInteger(config.get(Config.TOPOLOGY_MAX_SPOUT_PENDING));
-
 
     long totalTuplesEmitted = collector.getTotalTuplesEmitted();
 
-    long totalDataEmittedInBytesBeforeCycle = collector.getTotalDataEmittedInBytes();
-
-    long instanceEmitBatchTime
-        = systemConfig.getInstanceEmitBatchTimeMs() * Constants.MILLISECONDS_TO_NANOSECONDS;
-
-    long instanceEmitBatchSize = systemConfig.getInstanceEmitBatchSizeBytes();
+    long instanceEmitBatchTime =
+        systemConfig.getInstanceEmitBatchTimeMs() * Constants.MILLISECONDS_TO_NANOSECONDS;
 
     long startOfCycle = System.nanoTime();
 
-    while (
-        (ackEnabled && (maxSpoutPending > collector.numInFlight()))
-            || !ackEnabled) {
+    // We would reuse the System.nanoTime()
+    long currentTime = startOfCycle;
+
+    while (!ackEnabled || (maxSpoutPending > collector.numInFlight())) {
       // Delegate to the use defined spout
-      long startTime = System.nanoTime();
       spout.nextTuple();
-      long latency = System.nanoTime() - startTime;
+
+      // Swap
+      long startTime = currentTime;
+      currentTime = System.nanoTime();
+
+      long latency = currentTime - startTime;
       spoutMetrics.nextTuple(latency);
 
       long newTotalTuplesEmitted = collector.getTotalTuplesEmitted();
@@ -279,12 +286,7 @@ public class SpoutInstance implements IInstance {
       totalTuplesEmitted = newTotalTuplesEmitted;
 
       // To avoid spending too much time
-      if (System.nanoTime() - startOfCycle - instanceEmitBatchTime > 0) {
-        break;
-      }
-
-      if (collector.getTotalDataEmittedInBytes() - totalDataEmittedInBytesBeforeCycle
-          > instanceEmitBatchSize) {
+      if (currentTime - startOfCycle - instanceEmitBatchTime > 0) {
         break;
       }
     }
@@ -392,8 +394,7 @@ public class SpoutInstance implements IInstance {
     spout.fail(messageId);
 
     // Invoke user-defined task hooks
-    helper.getTopologyContext().
-        invokeHookSpoutFail(messageId, failLatencyNs);
+    helper.getTopologyContext().invokeHookSpoutFail(messageId, failLatencyNs);
 
     // Update metrics
     spoutMetrics.failedTuple(streamId, failLatencyNs);

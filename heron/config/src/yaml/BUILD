@@ -3,11 +3,6 @@ licenses(["notice"])
 package(default_visibility = ["//visibility:public"])
 
 filegroup(
-    name = "tracker-yaml",
-    srcs = ["tracker/heron_tracker.yaml"],
-)
-
-filegroup(
     name = "test-config-internals-yaml",
     srcs = ["conf/test/test_heron_internals.yaml"],
 )
@@ -30,6 +25,21 @@ filegroup(
 filegroup(
     name = "conf-slurm-yaml",
     srcs = glob(["conf/slurm/*"]),
+)
+
+filegroup(
+    name = "conf-yarn-yaml",
+    srcs = glob(["conf/yarn/*"]),
+)
+
+filegroup(
+    name = "conf-mesos-yaml",
+    srcs = glob(["conf/mesos/*"]),
+)
+
+filegroup(
+    name = "conf-marathon-yaml",
+    srcs = glob(["conf/marathon/*"]),
 )
 
 filegroup(

@@ -16,9 +16,11 @@ package com.twitter.heron.statemgr.zookeeper.curator;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.protobuf.Message;
@@ -27,19 +29,26 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.api.BackgroundCallback;
 import org.apache.curator.framework.api.CuratorEvent;
+import org.apache.curator.framework.api.DeleteBuilder;
+import org.apache.curator.framework.recipes.locks.InterProcessSemaphoreMutex;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.Watcher;
 
 import com.twitter.heron.api.generated.TopologyAPI;
 import com.twitter.heron.common.basics.Pair;
 import com.twitter.heron.proto.scheduler.Scheduler;
 import com.twitter.heron.proto.system.ExecutionEnvironment;
+import com.twitter.heron.proto.system.PackingPlans;
 import com.twitter.heron.proto.system.PhysicalPlans;
 import com.twitter.heron.proto.tmaster.TopologyMaster;
 import com.twitter.heron.spi.common.Config;
 import com.twitter.heron.spi.common.Context;
+import com.twitter.heron.spi.common.Keys;
+import com.twitter.heron.spi.statemgr.Lock;
 import com.twitter.heron.spi.statemgr.WatchCallback;
+import com.twitter.heron.spi.utils.NetworkUtils;
 import com.twitter.heron.statemgr.FileSystemStateManager;
 import com.twitter.heron.statemgr.zookeeper.ZkContext;
 import com.twitter.heron.statemgr.zookeeper.ZkUtils;
@@ -62,13 +71,16 @@ public class CuratorStateManager extends FileSystemStateManager {
     this.isSchedulerService = Context.schedulerService(newConfig);
     this.tunnelProcesses = new ArrayList<>();
 
-    boolean isTunnelWhenNeeded = ZkContext.isTunnelNeeded(newConfig);
-    if (isTunnelWhenNeeded) {
-      Pair<String, List<Process>> tunneledResults = setupZkTunnel();
+    NetworkUtils.TunnelConfig tunnelConfig =
+        NetworkUtils.TunnelConfig.build(config, NetworkUtils.HeronSystem.STATE_MANAGER);
+
+    if (tunnelConfig.isTunnelNeeded()) {
+      Pair<String, List<Process>> tunneledResults = setupZkTunnel(tunnelConfig);
 
       String newConnectionString = tunneledResults.first;
       if (newConnectionString.isEmpty()) {
-        throw new IllegalArgumentException("Bad connectionString: " + connectionString);
+        throw new IllegalArgumentException("Cannot connect to tunnel host: "
+            + tunnelConfig.getTunnelHost());
       }
 
       // Use the new connection string
@@ -95,6 +107,43 @@ public class CuratorStateManager extends FileSystemStateManager {
     }
   }
 
+  /**
+   * Lock backed by {@code InterProcessSemaphoreMutex}. Guaranteed to atomically get a
+   * distributed ephemeral lock backed by zookeeper. The lock should be explicitly released to
+   * avoid unnecessary waiting by other threads waiting on it.
+   */
+  private final class DistributedLock implements Lock {
+    private String path;
+    private InterProcessSemaphoreMutex lock;
+
+    private DistributedLock(CuratorFramework client, String path) {
+      this.path = path;
+      this.lock = new InterProcessSemaphoreMutex(client, path);
+    }
+
+    @Override
+    public boolean tryLock(long timeout, TimeUnit unit) throws InterruptedException {
+      try {
+        return this.lock.acquire(timeout, unit);
+      } catch (InterruptedException e) {
+        throw e;
+        // SUPPRESS CHECKSTYLE IllegalCatch
+      } catch (Exception e) {
+        throw new RuntimeException("Error while trying to acquire distributed lock at " + path, e);
+      }
+    }
+
+    @Override
+    public void unlock() {
+      try {
+        this.lock.release();
+        // SUPPRESS CHECKSTYLE IllegalCatch
+      } catch (Exception e) {
+        throw new RuntimeException("Error while trying to release distributed lock at " + path, e);
+      }
+    }
+  }
+
   protected CuratorFramework getCuratorClient() {
     // these are reasonable arguments for the ExponentialBackoffRetry. The first
     // retry will wait 1 second - the second will wait up to 2 seconds - the
@@ -114,24 +163,20 @@ public class CuratorStateManager extends FileSystemStateManager {
         .build();
   }
 
-  protected Pair<String, List<Process>> setupZkTunnel() {
-    return ZkUtils.setupZkTunnel(config);
+  protected Pair<String, List<Process>> setupZkTunnel(NetworkUtils.TunnelConfig tunnelConfig) {
+    return ZkUtils.setupZkTunnel(config, tunnelConfig);
   }
 
   protected void initTree() {
     // Make necessary directories
-    LOG.info("Topologies directory: " + getTopologyDir());
-    LOG.info("Tmaster location directory: " + getTMasterLocationDir());
-    LOG.info("Physical plan directory: " + getPhysicalPlanDir());
-    LOG.info("Execution state directory: " + getExecutionStateDir());
-    LOG.info("Scheduler location directory: " + getSchedulerLocationDir());
+    for (StateLocation location : StateLocation.values()) {
+      LOG.info(String.format("%s directory: %s", location.getName(), getStateDirectory(location)));
+    }
 
     try {
-      client.createContainers(getTopologyDir());
-      client.createContainers(getTMasterLocationDir());
-      client.createContainers(getPhysicalPlanDir());
-      client.createContainers(getExecutionStateDir());
-      client.createContainers(getSchedulerLocationDir());
+      for (StateLocation location : StateLocation.values()) {
+        client.createContainers(getStateDirectory(location));
+      }
 
       // Suppress it since createContainers() throws Exception
       // SUPPRESS CHECKSTYLE IllegalCatch
@@ -161,7 +206,8 @@ public class CuratorStateManager extends FileSystemStateManager {
   }
 
   // Make utils class protected for easy unit testing
-  protected ListenableFuture<Boolean> existNode(String path) {
+  @Override
+  protected ListenableFuture<Boolean> nodeExists(String path) {
     final SettableFuture<Boolean> result = SettableFuture.create();
 
     try {
@@ -177,6 +223,14 @@ public class CuratorStateManager extends FileSystemStateManager {
     return result;
   }
 
+  protected ListenableFuture<Boolean> createNode(
+      StateLocation location, String topologyName,
+      byte[] data,
+      boolean isEphemeral) {
+    return createNode(getStatePath(location, topologyName), data, isEphemeral);
+  }
+
+  @VisibleForTesting
   protected ListenableFuture<Boolean> createNode(
       String path,
       byte[] data,
@@ -198,13 +252,25 @@ public class CuratorStateManager extends FileSystemStateManager {
     return result;
   }
 
-  protected ListenableFuture<Boolean> deleteNode(String path) {
+  @Override
+  protected ListenableFuture<Boolean> deleteNode(String path, boolean deleteChildrenIfNecessary) {
     final SettableFuture<Boolean> result = SettableFuture.create();
 
     try {
-      client.delete().withVersion(-1).forPath(path);
+      DeleteBuilder deleteBuilder = client.delete();
+      if (deleteChildrenIfNecessary) {
+        deleteBuilder = (DeleteBuilder) deleteBuilder.deletingChildrenIfNeeded();
+      }
+      deleteBuilder.withVersion(-1).forPath(path);
       LOG.info("Deleted node for path: " + path);
       result.set(true);
+
+    } catch (KeeperException e) {
+      if (KeeperException.Code.NONODE.equals(e.code())) {
+        result.set(true);
+      } else {
+        result.setException(new RuntimeException("Could not deleteNode", e));
+      }
 
       // Suppress it since forPath() throws Exception
       // SUPPRESS CHECKSTYLE IllegalCatch
@@ -215,6 +281,7 @@ public class CuratorStateManager extends FileSystemStateManager {
     return result;
   }
 
+  @Override
   protected <M extends Message> ListenableFuture<M> getNodeData(
       WatchCallback watcher,
       String path,
@@ -244,38 +311,51 @@ public class CuratorStateManager extends FileSystemStateManager {
       // Suppress it since forPath() throws Exception
       // SUPPRESS CHECKSTYLE IllegalCatch
     } catch (Exception e) {
-      future.setException(new RuntimeException("Could not getData", e));
+      future.setException(new RuntimeException("Could not getNodeData", e));
     }
 
     return future;
   }
 
   @Override
+  protected Lock getLock(String path) {
+    return new DistributedLock(this.client, path);
+  }
+
+  @Override
   public ListenableFuture<Boolean> setTMasterLocation(
       TopologyMaster.TMasterLocation location,
       String topologyName) {
-    return createNode(getTMasterLocationPath(topologyName), location.toByteArray(), true);
+    return createNode(StateLocation.TMASTER_LOCATION, topologyName, location.toByteArray(), true);
   }
 
   @Override
   public ListenableFuture<Boolean> setExecutionState(
       ExecutionEnvironment.ExecutionState executionState,
       String topologyName) {
-    return createNode(getExecutionStatePath(topologyName), executionState.toByteArray(), false);
+    return createNode(
+        StateLocation.EXECUTION_STATE, topologyName, executionState.toByteArray(), false);
   }
 
   @Override
   public ListenableFuture<Boolean> setTopology(
       TopologyAPI.Topology topology,
       String topologyName) {
-    return createNode(getTopologyPath(topologyName), topology.toByteArray(), false);
+    return createNode(StateLocation.TOPOLOGY, topologyName, topology.toByteArray(), false);
   }
 
   @Override
   public ListenableFuture<Boolean> setPhysicalPlan(
       PhysicalPlans.PhysicalPlan physicalPlan,
       String topologyName) {
-    return createNode(getPhysicalPlanPath(topologyName), physicalPlan.toByteArray(), false);
+    return createNode(StateLocation.PHYSICAL_PLAN, topologyName, physicalPlan.toByteArray(), false);
+  }
+
+  @Override
+  public ListenableFuture<Boolean> setPackingPlan(
+      PackingPlans.PackingPlan packingPlan,
+      String topologyName) {
+    return createNode(StateLocation.PACKING_PLAN, topologyName, packingPlan.toByteArray(), false);
   }
 
   @Override
@@ -283,7 +363,7 @@ public class CuratorStateManager extends FileSystemStateManager {
       Scheduler.SchedulerLocation location,
       String topologyName) {
     // if isService, set the node as ephemeral node; set as persistent node otherwise
-    return createNode(getSchedulerLocationPath(topologyName),
+    return createNode(StateLocation.SCHEDULER_LOCATION, topologyName,
         location.toByteArray(),
         isSchedulerService);
   }
@@ -297,21 +377,6 @@ public class CuratorStateManager extends FileSystemStateManager {
   }
 
   @Override
-  public ListenableFuture<Boolean> deleteExecutionState(String topologyName) {
-    return deleteNode(getExecutionStatePath(topologyName));
-  }
-
-  @Override
-  public ListenableFuture<Boolean> deleteTopology(String topologyName) {
-    return deleteNode(getTopologyPath(topologyName));
-  }
-
-  @Override
-  public ListenableFuture<Boolean> deletePhysicalPlan(String topologyName) {
-    return deleteNode(getPhysicalPlanPath(topologyName));
-  }
-
-  @Override
   public ListenableFuture<Boolean> deleteSchedulerLocation(String topologyName) {
     // if scheduler is service, the znode is ephemeral and it's deleted automatically
     if (isSchedulerService) {
@@ -319,52 +384,22 @@ public class CuratorStateManager extends FileSystemStateManager {
       result.set(true);
       return result;
     } else {
-      return deleteNode(getSchedulerLocationPath(topologyName));
+      return deleteNode(getStatePath(StateLocation.SCHEDULER_LOCATION, topologyName), false);
     }
   }
 
-  @Override
-  public ListenableFuture<TopologyMaster.TMasterLocation> getTMasterLocation(
-      WatchCallback watcher,
-      String topologyName) {
-    return getNodeData(watcher, getTMasterLocationPath(topologyName),
-        TopologyMaster.TMasterLocation.newBuilder());
-  }
+  public static void main(String[] args) throws ExecutionException, InterruptedException,
+      IllegalAccessException, ClassNotFoundException, InstantiationException {
+    if (args.length < 2) {
+      throw new RuntimeException("Expects arguments: <topology_name> <zookeeper_hostname>");
+    }
 
-  @Override
-  public ListenableFuture<Scheduler.SchedulerLocation> getSchedulerLocation(
-      WatchCallback watcher,
-      String topologyName) {
-    return getNodeData(watcher, getSchedulerLocationPath(topologyName),
-        Scheduler.SchedulerLocation.newBuilder());
-  }
-
-  @Override
-  public ListenableFuture<TopologyAPI.Topology> getTopology(
-      WatchCallback watcher,
-      String topologyName) {
-    return getNodeData(watcher, getTopologyPath(topologyName),
-        TopologyAPI.Topology.newBuilder());
-  }
-
-  @Override
-  public ListenableFuture<ExecutionEnvironment.ExecutionState> getExecutionState(
-      WatchCallback watcher,
-      String topologyName) {
-    return getNodeData(watcher, getExecutionStatePath(topologyName),
-        ExecutionEnvironment.ExecutionState.newBuilder());
-  }
-
-  @Override
-  public ListenableFuture<PhysicalPlans.PhysicalPlan> getPhysicalPlan(
-      WatchCallback watcher,
-      String topologyName) {
-    return getNodeData(watcher, getPhysicalPlanPath(topologyName),
-        PhysicalPlans.PhysicalPlan.newBuilder());
-  }
-
-  @Override
-  public ListenableFuture<Boolean> isTopologyRunning(String topologyName) {
-    return existNode(getTopologyPath(topologyName));
+    String zookeeperHostname = args[1];
+    Config config = Config.newBuilder()
+        .put(Keys.stateManagerRootPath(), "/storm/heron/states")
+        .put(Keys.stateManagerConnectionString(), zookeeperHostname)
+        .build();
+    CuratorStateManager stateManager = new CuratorStateManager();
+    stateManager.doMain(args, config);
   }
 }

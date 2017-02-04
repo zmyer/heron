@@ -1,13 +1,12 @@
 package(default_visibility = ["//visibility:public"])
 
-load("/tools/build_defs/pkg/pkg", "pkg_tar")
-load("/tools/build_defs/pkg/pkg", "pkg_deb")
+load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar", "pkg_deb")
 
 load("/tools/rules/heron_api", "heron_api_files")
 
 load("/tools/rules/heron_client", "heron_client_bin_files")
 load("/tools/rules/heron_client", "heron_client_conf_files")
-load("/tools/rules/heron_client", "heron_client_lib_3rdparty_files")
+load("/tools/rules/heron_client", "heron_client_lib_third_party_files")
 load("/tools/rules/heron_client", "heron_client_lib_scheduler_files")
 load("/tools/rules/heron_client", "heron_client_lib_packing_files")
 load("/tools/rules/heron_client", "heron_client_lib_statemgr_files")
@@ -31,6 +30,11 @@ load("/tools/rules/heron_examples", "heron_examples_files")
 generated_release_files = [
     "release.yaml",
 ]
+
+filegroup(
+    name = "release_files",
+    srcs = generated_release_files,
+)
 
 filegroup(
     name = "tarpkgs",
@@ -163,9 +167,9 @@ pkg_tar(
 )
 
 pkg_tar(
-    name = "heron-client-lib-3rdparty",
-    package_dir = "lib/3rdparty",
-    files = heron_client_lib_3rdparty_files(),
+    name = "heron-client-lib-third_party",
+    package_dir = "lib/third_party",
+    files = heron_client_lib_third_party_files(),
 )
 
 pkg_tar(
@@ -199,6 +203,30 @@ pkg_tar(
 )
 
 pkg_tar(
+    name = "heron-client-conf-yarn",
+    package_dir = "conf/yarn",
+    files = [
+        "//heron/config/src/yaml:conf-yarn-yaml",
+    ],
+)
+
+pkg_tar(
+     name = "heron-client-conf-mesos",
+     package_dir = "conf/mesos",
+     files = [
+         "//heron/config/src/yaml:conf-mesos-yaml",
+     ],
+)
+
+pkg_tar(
+    name = "heron-client-conf-marathon",
+    package_dir = "conf/marathon",
+    files = [
+        "//heron/config/src/yaml:conf-marathon-yaml",
+    ]
+)
+
+pkg_tar(
     name = "heron-client-conf",
     package_dir = "conf",
     files = heron_client_conf_files(),
@@ -220,9 +248,12 @@ pkg_tar(
         ":heron-client-conf-local",
         ":heron-client-conf-aurora",
         ":heron-client-conf-slurm",
+        ":heron-client-conf-yarn",
+        ":heron-client-conf-mesos",
+        ":heron-client-conf-marathon",
         ":heron-client-dist",
         ":heron-client-examples",
-        ":heron-client-lib-3rdparty",
+        ":heron-client-lib-third_party",
         ":heron-client-lib-scheduler",
         ":heron-client-lib-packing",
         ":heron-client-lib-statemgr",
@@ -250,41 +281,44 @@ sh_binary(
 genrule(
     name = "generate-package-info",
     outs = generated_release_files,
-    cmd = "$(location :package-info-generator) $$(find . -name '*status*.txt') >$@",
+    cmd = "$(location :package-info-generator) $$(find -L . -name '*status*.txt') >$@",
     stamp = 1,
     tools = [":package-info-generator"],
 )
 
 genrule(
     name = "generate-client-launcher",
-    srcs = ["client_template_bin.sh"] + generated_release_files,
+    srcs = ["client_template_bin.sh", "bin_common.sh"] + generated_release_files,
     outs = ["client_launcher_bin.sh"],
     cmd = """
         release_info="$$(cat $(location :release.yaml))"
+        bin_common="$$(cat $(location bin_common.sh))"
         template="$$(cat $(location client_template_bin.sh))"
-        echo "$${template//%release_info%/$${release_info}}" >$@
+        echo "$${bin_common}\n\n$${template//%release_info%/$${release_info}}" >$@
         """,
 )
 
 genrule(
     name = "generate-tools-launcher",
-    srcs = ["tools_template_bin.sh"] + generated_release_files,
+    srcs = ["tools_template_bin.sh", "bin_common.sh"] + generated_release_files,
     outs = ["tools_launcher_bin.sh"],
     cmd = """
         release_info="$$(cat $(location :release.yaml))"
+        bin_common="$$(cat $(location bin_common.sh))"
         template="$$(cat $(location tools_template_bin.sh))"
-        echo "$${template//%release_info%/$${release_info}}" >$@
+        echo "$${bin_common}\n\n$${template//%release_info%/$${release_info}}" >$@
         """,
 )
 
 genrule(
     name = "generate-api-launcher",
-    srcs = ["api_template_bin.sh"] + generated_release_files,
+    srcs = ["api_template_bin.sh", "bin_common.sh"] + generated_release_files,
     outs = ["api_launcher_bin.sh"],
     cmd = """
         release_info="$$(cat $(location :release.yaml))"
+        bin_common="$$(cat $(location bin_common.sh))"
         template="$$(cat $(location api_template_bin.sh))"
-        echo "$${template//%release_info%/$${release_info}}" >$@
+        echo "$${bin_common}\n\n$${template//%release_info%/$${release_info}}" >$@
         """,
 )
 
@@ -327,4 +361,9 @@ filegroup(
 filegroup(
     name = "tools-template-bin.sh",
     srcs = ["tools_template_bin.sh"],
+)
+
+filegroup(
+    name = "bin-common.sh",
+    srcs = ["bin_common.sh"],
 )

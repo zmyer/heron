@@ -14,27 +14,32 @@
 
 package com.twitter.heron.spi.packing;
 
+import com.twitter.heron.api.generated.TopologyAPI;
+import com.twitter.heron.classification.InterfaceAudience;
+import com.twitter.heron.classification.InterfaceStability;
 import com.twitter.heron.spi.common.Config;
-import com.twitter.heron.spi.common.PackingPlan;
 
 /**
  * Packing algorithm to use for packing multiple instances into containers. Packing hints like
  * number of container may be passed through scheduler config.
  */
+@InterfaceAudience.LimitedPrivate
+@InterfaceStability.Unstable
 public interface IPacking extends AutoCloseable {
 
   /**
-   * Initialize the packing algorithm with the static and runtime config
+   * Initialize the packing algorithm with the static config and the topology
    */
-  void initialize(Config config, Config runtime);
+  void initialize(Config config, TopologyAPI.Topology topology);
 
   /**
    * Called by scheduler to generate container packing.
    * Packing algorithm output generates instance id and container id.
    *
    * @return PackingPlan describing the job to schedule.
+   * @throws PackingException if the packing plan can not be generated
    */
-  PackingPlan pack();
+  PackingPlan pack() throws PackingException;
 
   /**
    * This is to for disposing or cleaning up any internal state accumulated by

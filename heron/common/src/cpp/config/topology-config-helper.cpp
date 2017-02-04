@@ -30,6 +30,21 @@
 namespace heron {
 namespace config {
 
+bool TopologyConfigHelper::IsAckingEnabled(const proto::api::Topology& _topology) {
+  sp_string value_true_ = "true";
+  std::set<sp_string> topology_config;
+  if (_topology.has_topology_config()) {
+    const proto::api::Config& cfg = _topology.topology_config();
+    for (sp_int32 i = 0; i < cfg.kvs_size(); ++i) {
+      if (cfg.kvs(i).key() == TopologyConfigVars::TOPOLOGY_ENABLE_ACKING) {
+        return value_true_.compare(cfg.kvs(i).value().c_str()) == 0;
+      }
+    }
+  }
+
+  return false;
+}
+
 sp_int32 TopologyConfigHelper::GetNumStMgrs(const proto::api::Topology& _topology) {
   std::set<sp_string> topology_config;
   if (_topology.has_topology_config()) {
@@ -144,13 +159,13 @@ proto::api::Topology* TopologyConfigHelper::StripComponentObjects(
   proto::api::Topology* ret = new proto::api::Topology();
   ret->CopyFrom(_topology);
   for (sp_int32 i = 0; i < ret->spouts_size(); ++i) {
-    if (ret->mutable_spouts(i)->mutable_comp()->has_java_object()) {
-      ret->mutable_spouts(i)->mutable_comp()->clear_java_object();
+    if (ret->mutable_spouts(i)->mutable_comp()->has_serialized_object()) {
+      ret->mutable_spouts(i)->mutable_comp()->clear_serialized_object();
     }
   }
   for (sp_int32 i = 0; i < ret->bolts_size(); ++i) {
-    if (ret->mutable_bolts(i)->mutable_comp()->has_java_object()) {
-      ret->mutable_bolts(i)->mutable_comp()->clear_java_object();
+    if (ret->mutable_bolts(i)->mutable_comp()->has_serialized_object()) {
+      ret->mutable_bolts(i)->mutable_comp()->clear_serialized_object();
     }
   }
   return ret;

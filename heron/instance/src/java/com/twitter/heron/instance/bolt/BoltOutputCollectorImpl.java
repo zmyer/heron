@@ -61,7 +61,7 @@ public class BoltOutputCollectorImpl implements IOutputCollector {
 
   // Reference to update the bolt metrics
   private final BoltMetrics boltMetrics;
-  private final PhysicalPlanHelper helper;
+  private PhysicalPlanHelper helper;
 
   private final boolean ackEnabled;
 
@@ -75,8 +75,8 @@ public class BoltOutputCollectorImpl implements IOutputCollector {
     }
 
     this.serializer = serializer;
-    this.helper = helper;
     this.boltMetrics = boltMetrics;
+    updatePhysicalPlanHelper(helper);
 
     Map<String, Object> config = helper.getTopologyContext().getTopologyConfig();
     if (config.containsKey(Config.TOPOLOGY_ENABLE_ACKING)
@@ -86,7 +86,11 @@ public class BoltOutputCollectorImpl implements IOutputCollector {
       this.ackEnabled = false;
     }
 
-    this.outputter = new OutgoingTupleCollection(helper, streamOutQueue);
+    this.outputter = new OutgoingTupleCollection(helper.getMyComponent(), streamOutQueue);
+  }
+
+  void updatePhysicalPlanHelper(PhysicalPlanHelper physicalPlanHelper) {
+    this.helper = physicalPlanHelper;
   }
 
   /////////////////////////////////////////////////////////
@@ -104,13 +108,12 @@ public class BoltOutputCollectorImpl implements IOutputCollector {
       String streamId,
       Collection<Tuple> anchors,
       List<Object> tuple) {
-    admitBoltTuple(taskId, streamId, anchors, tuple);
+    throw new RuntimeException("emitDirect not supported");
   }
 
   @Override
   public void reportError(Throwable error) {
-    Exception currentStack = new Exception("Reporting an error in topology code", error);
-    LOG.log(Level.SEVERE, "Error stack trace ", currentStack);
+    LOG.log(Level.SEVERE, "Reporting an error in topology code ", error);
   }
 
   @Override
@@ -151,20 +154,14 @@ public class BoltOutputCollectorImpl implements IOutputCollector {
   /////////////////////////////////////////////////////////
   // Following private methods are internal implementations
   /////////////////////////////////////////////////////////
-
   private List<Integer> admitBoltTuple(
       String streamId,
       Collection<Tuple> anchors,
       List<Object> tuple) {
-    // First check whether this tuple is sane
-    helper.checkOutputSchema(streamId, tuple);
-
-    // customGroupingTargetTaskIds will be null if this stream is not CustomStreamGrouping
-    List<Integer> customGroupingTargetTaskIds =
-        helper.chooseTasksForCustomStreamGrouping(streamId, tuple);
-
-    // Invoke user-defined emit task hook
-    helper.getTopologyContext().invokeHookEmit(tuple, streamId, customGroupingTargetTaskIds);
+    if (helper.isTerminatedComponent()) {
+      // No need to handle this tuples
+      return null;
+    }
 
     // Start construct the data tuple
     HeronTuples.HeronDataTuple.Builder bldr = HeronTuples.HeronDataTuple.newBuilder();
@@ -172,12 +169,20 @@ public class BoltOutputCollectorImpl implements IOutputCollector {
     // set the key. This is mostly ignored
     bldr.setKey(0);
 
-    if (customGroupingTargetTaskIds != null) {
-      // It is a CustomStreamGrouping
-      for (Integer taskId : customGroupingTargetTaskIds) {
-        bldr.addDestTaskIds(taskId);
+    List<Integer> customGroupingTargetTaskIds = null;
+    if (!helper.isCustomGroupingEmpty()) {
+      // customGroupingTargetTaskIds will be null if this stream is not CustomStreamGrouping
+      customGroupingTargetTaskIds =
+          helper.chooseTasksForCustomStreamGrouping(streamId, tuple);
+
+      if (customGroupingTargetTaskIds != null) {
+        // It is a CustomStreamGrouping
+        bldr.addAllDestTaskIds(customGroupingTargetTaskIds);
       }
     }
+
+    // Invoke user-defined emit task hook
+    helper.getTopologyContext().invokeHookEmit(tuple, streamId, customGroupingTargetTaskIds);
 
     // Set the anchors for a tuple
     if (anchors != null) {
@@ -195,7 +200,6 @@ public class BoltOutputCollectorImpl implements IOutputCollector {
     }
 
     long tupleSizeInBytes = 0;
-
     long startTime = System.nanoTime();
 
     // Serialize it
@@ -208,7 +212,6 @@ public class BoltOutputCollectorImpl implements IOutputCollector {
 
     long latency = System.nanoTime() - startTime;
     boltMetrics.serializeDataTuple(streamId, latency);
-
     // submit to outputter
     outputter.addDataTuple(streamId, bldr, tupleSizeInBytes);
 
@@ -219,15 +222,12 @@ public class BoltOutputCollectorImpl implements IOutputCollector {
     return null;
   }
 
-  private void admitBoltTuple(
-      int taskId, String streamId, Collection<Tuple> anchors, List<Object> tuple) {
-    throw new RuntimeException("emitDirect not supported");
-  }
-
   private void admitAckTuple(Tuple tuple) {
-    if (tuple instanceof TupleImpl) {
-      TupleImpl tuplImpl = (TupleImpl) tuple;
-      if (ackEnabled) {
+    long latency = 0;
+    if (ackEnabled) {
+      if (tuple instanceof TupleImpl) {
+        TupleImpl tuplImpl = (TupleImpl) tuple;
+
         HeronTuples.AckTuple.Builder bldr = HeronTuples.AckTuple.newBuilder();
         bldr.setAckedtuple(tuplImpl.getTupleKey());
 
@@ -238,22 +238,23 @@ public class BoltOutputCollectorImpl implements IOutputCollector {
           tupleSizeInBytes += rt.getSerializedSize();
         }
         outputter.addAckTuple(bldr, tupleSizeInBytes);
+
+        latency = System.nanoTime() - tuplImpl.getCreationTime();
       }
-      long latency = System.nanoTime() - tuplImpl.getCreationTime();
-
-      // Invoke user-defined boltAck task hook
-      helper.getTopologyContext().
-          invokeHookBoltAck(tuple, latency);
-
-
-      boltMetrics.ackedTuple(tuple.getSourceStreamId(), tuple.getSourceComponent(), latency);
     }
+
+    // Invoke user-defined boltAck task hook
+    helper.getTopologyContext().invokeHookBoltAck(tuple, latency);
+
+    boltMetrics.ackedTuple(tuple.getSourceStreamId(), tuple.getSourceComponent(), latency);
   }
 
   private void admitFailTuple(Tuple tuple) {
-    if (tuple instanceof TupleImpl) {
-      TupleImpl tuplImpl = (TupleImpl) tuple;
-      if (ackEnabled) {
+    long latency = 0;
+    if (ackEnabled) {
+      if (tuple instanceof TupleImpl) {
+        TupleImpl tuplImpl = (TupleImpl) tuple;
+
         HeronTuples.AckTuple.Builder bldr = HeronTuples.AckTuple.newBuilder();
         bldr.setAckedtuple(tuplImpl.getTupleKey());
 
@@ -264,14 +265,14 @@ public class BoltOutputCollectorImpl implements IOutputCollector {
           tupleSizeInBytes += rt.getSerializedSize();
         }
         outputter.addFailTuple(bldr, tupleSizeInBytes);
+
+        latency = System.nanoTime() - tuplImpl.getCreationTime();
       }
-      long latency = System.nanoTime() - tuplImpl.getCreationTime();
-
-      // Invoke user-defined boltFail task hook
-      helper.getTopologyContext().
-          invokeHookBoltFail(tuple, latency);
-
-      boltMetrics.failedTuple(tuple.getSourceStreamId(), tuple.getSourceComponent(), latency);
     }
+
+    // Invoke user-defined boltFail task hook
+    helper.getTopologyContext().invokeHookBoltFail(tuple, latency);
+
+    boltMetrics.failedTuple(tuple.getSourceStreamId(), tuple.getSourceComponent(), latency);
   }
 }

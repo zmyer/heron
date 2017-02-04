@@ -40,13 +40,16 @@ public class HeronTopology {
   private static TopologyAPI.Config.Builder getConfigBuilder(Config config) {
     TopologyAPI.Config.Builder cBldr = TopologyAPI.Config.newBuilder();
     Set<String> apiVars = config.getApiVars();
-    for (Map.Entry<String, Object> entry : config.entrySet()) {
+    for (String key : config.keySet()) {
+      Object value = config.get(key);
       TopologyAPI.Config.KeyValue.Builder b = TopologyAPI.Config.KeyValue.newBuilder();
-      b.setKey(entry.getKey());
-      if (apiVars.contains(entry.getKey())) {
-        b.setValue(entry.getValue().toString());
+      b.setKey(key);
+      if (apiVars.contains(key)) {
+        b.setType(TopologyAPI.ConfigValueType.STRING_VALUE);
+        b.setValue(value.toString());
       } else {
-        b.setJavaSerializedValue(ByteString.copyFrom(Utils.serialize(entry.getValue())));
+        b.setType(TopologyAPI.ConfigValueType.JAVA_SERIALIZED_VALUE);
+        b.setSerializedValue(ByteString.copyFrom(Utils.serialize(value)));
       }
       cBldr.addKvs(b);
     }

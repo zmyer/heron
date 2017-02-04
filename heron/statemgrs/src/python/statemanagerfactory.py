@@ -11,17 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+'''
+statemanagerfactory.py
+Factory function that instantiates and connects to the requested
+state managers based on a conf file.
+Returns these state managers.
+'''
 
 import os
 import traceback
 
-"""
-Factory function that instantiates and connects to the requested
-state managers based on a conf file.
-Returns these state managers.
-"""
 
-from heron.statemgrs.src.python.config import Config
 from heron.statemgrs.src.python.filestatemanager import FileStateManager
 from heron.statemgrs.src.python.log import Log as LOG
 from heron.statemgrs.src.python.zkstatemanager import ZkStateManager
@@ -47,24 +47,27 @@ def get_all_zk_state_managers(conf):
   for location in state_locations:
     name = location['name']
     hostport = location['hostport']
-    host = None
-    port = None
-    if ':' in hostport:
-      hostportlist = hostport.split(':')
-      if len(hostportlist) == 2:
-        host = hostportlist[0]
-        port = int(hostportlist[1])
-    if not host or not port:
-      raise Exception("Hostport for %s must be of the format 'host:port'." % (name))
+    hostportlist = []
+    for hostportpair in hostport.split(','):
+      host = None
+      port = None
+      if ':' in hostport:
+        hostandport = hostportpair.split(':')
+        if len(hostandport) == 2:
+          host = hostandport[0]
+          port = int(hostandport[1])
+      if not host or not port:
+        raise Exception("Hostport for %s must be of the format 'host:port'." % (name))
+      hostportlist.append((host, port))
     tunnelhost = location['tunnelhost']
     rootpath = location['rootpath']
-    LOG.info("Connecting to zk hostport: " + host + ":" + str(port) + " rootpath: " + rootpath)
-    state_manager = ZkStateManager(name, host, port, rootpath, tunnelhost)
+    LOG.info("Connecting to zk hostports: " + str(hostportlist) + " rootpath: " + rootpath)
+    state_manager = ZkStateManager(name, hostportlist, rootpath, tunnelhost)
     try:
       state_manager.start()
-    except Exception as e:
+    except Exception:
       LOG.error("Exception while connecting to state_manager.")
-      traceback.print_exc()
+      LOG.debug(traceback.format_exc())
     state_managers.append(state_manager)
 
   return state_managers
@@ -82,7 +85,7 @@ def get_all_file_state_managers(conf):
     state_manager = FileStateManager(name, rootpath)
     try:
       state_manager.start()
-    except Exception as e:
+    except Exception:
       LOG.error("Exception while connecting to state_manager.")
       traceback.print_exc()
     state_managers.append(state_manager)
